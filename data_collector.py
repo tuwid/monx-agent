@@ -1,22 +1,29 @@
 #!/usr/bin/python
 
 # importing some stuff
+# from urllib2 import Request, urlopen, URLError, HTTPError
+# from socket import error as SocketError
+import requests
 import os, subprocess
 import platform
-import urllib2
+# import urllib2
 import calendar
 import time
 
-with open('/proc/uptime', 'r') as f:
-	uptime = f.readline().rstrip().split()[0]
 
-number_of_logins = len(subprocess.check_output("who").rstrip().split("\n"))
+data = {}
+
+
+with open('/proc/uptime', 'r') as f:
+	data['uptime'] = f.readline().rstrip().split()[0]
+
+data['number_of_logins'] = len(subprocess.check_output("who").rstrip().split("\n"))
 
 # with threads , the number is lower by just getting the procs
-number_of_processes = len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+data['number_of_processes'] = len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
 with open('/proc/loadavg', 'r') as f:
-	load = f.readline().rstrip().split()
+	data['load'] = f.readline().rstrip().split()
 
 with open('/proc/meminfo', 'r') as f:
 	meminfo = f.readlines()
@@ -24,25 +31,25 @@ with open('/proc/meminfo', 'r') as f:
 for memi in meminfo:
 	temp = memi.rstrip().split(': ')
 	if (temp[0] == 'MemTotal'):
-		memtotal = temp[1].strip()
+		data['memtotal'] = temp[1].strip()
 	if (temp[0] == 'MemFree'):
-		memfree = temp[1].strip()
+		data['memfree'] = temp[1].strip()
 	if (temp[0] == 'MemAvailable'):
-		memavailable = temp[1].strip()
+		data['memavailable'] = temp[1].strip()
 	if (temp[0] == 'Cached'):
-		memcached = temp[1].strip()
+		data['memcached'] = temp[1].strip()
 	if (temp[0] == 'SwapTotal'):
-		memswaptotal = temp[1].strip()
+		data['memswaptotal'] = temp[1].strip()
 	if (temp[0] == 'SwapFree'):
-		memswapfree = temp[1].strip()
+		data['memswapfree'] = temp[1].strip()
 
 
 connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
-connection_list = connection_list.split("\n",2)[2];
+data['connection_list'] = connection_list.split("\n",2)[2];
 
-uname = platform.uname()
+data['uname'] = platform.uname()
 
-number_of_connections = len(connection_list.rstrip().split("\n"))
+data['number_of_connections'] = len(connection_list.rstrip().split("\n"))
 #TODO
 #connection_stats ESTABLISHED, WAIT etc ..
 #TODO
@@ -52,20 +59,20 @@ number_of_connections = len(connection_list.rstrip().split("\n"))
 with open('/proc/sys/fs/file-nr', 'r') as f:
 	o_files = f.readline().rstrip().split()
 
-open_files = o_files[0]
-open_files_limit = o_files[2]
+data['open_files'] = o_files[0]
+data['open_files_limit'] = o_files[2]
 
-cpu_model = ""
-cpu_cores = 0
-cpu_speed = 0
+data['cpu_model'] = ""
+data['cpu_cores'] = 0
+data['cpu_speed'] = 0
 
 for line in open('/proc/cpuinfo'):
 	if "model name" in line:
-		cpu_model = line.rstrip().split(': ')[1]
+		data['cpu_model'] = line.rstrip().split(': ')[1]
 	if "processor" in line:
-		cpu_cores+=1
+		data['cpu_cores'] +=1
 	if "cpu MHz" in line:
-		cpu_speed = line.rstrip().split(': ')[1] + " MHz"
+		data['cpu_speed'] = line.rstrip().split(': ')[1] + " MHz"
 
 timenow = int(calendar.timegm(time.gmtime()))
 
@@ -79,7 +86,7 @@ current_cpu = general_stats[0] + general_stats[1] + general_stats[2] + general_s
 current_io = general_stats[3] + general_stats[4]   
 current_idle = general_stats[3]   
 
-outer_nic = ""
+data['outer_nic'] = ""
 
 route = "/proc/net/route"
 with open(route) as f:
@@ -88,20 +95,20 @@ with open(route) as f:
 						iface, dest, _, flags, _, _, _, _, _, _, _, =  line.strip().split()
 						if dest != '00000000' or not int(flags, 16) & 2:
 								continue
-						outer_nic = iface
+						data['outer_nic'] = iface
 				except:
 						continue
 
-with open('/sys/class/net/'+ outer_nic + '/statistics/rx_bytes', 'r') as f:
-	received_data = int(f.readline().rstrip())
+with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as f:
+	data['received_data'] = int(f.readline().rstrip())
 
-with open('/sys/class/net/' + outer_nic + '/statistics/tx_bytes', 'r') as f:
-	transmited_data = int(f.readline().rstrip())
+with open('/sys/class/net/' + data['outer_nic'] + '/statistics/tx_bytes', 'r') as f:
+	data['transmited_data'] = int(f.readline().rstrip())
 
-f = os.popen('ifconfig ' + outer_nic + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
-ipv4=f.read().rstrip()
+f = os.popen('ifconfig ' + data['outer_nic'] + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
+data['ipv4'] = f.read().rstrip()
 
-# try catch ktu
+# try catch ktu + check non empty
 if os.path.exists('/opt/data_collector/stats_data'):
 	with open('/opt/data_collector/stats_data', 'r') as f:
 		previous_stats = map(int, f.readline().rstrip().split())
@@ -121,23 +128,75 @@ if os.path.exists('/opt/data_collector/stats_data'):
 	idle_diff = current_idle - previous_idle
 
 	if(cpu_diff > 0):
-		cpu_load = (1000*(cpu_diff - idle_diff)/cpu_diff + 5)/10
+		data['cpu_load'] = (1000*(cpu_diff - idle_diff)/cpu_diff + 5)/10
 		
 	if(io_diff > 0):
-		io_load = (1000*(io_diff - idle_diff)/io_diff + 5)/10
+		data['io_load'] = (1000*(io_diff - idle_diff)/io_diff + 5)/10
 
-	if(received_data > previous_rx ):
-		rx_diff = received_data - previous_rx
+	if(data['received_data'] > previous_rx ):
+		data['rx_diff'] = data['received_data'] - previous_rx
 
-	if(transmited_data > previous_tx ):
-		tx_diff = transmited_data - previous_tx
+	if(data['transmited_data'] > previous_tx ):
+		data['tx_diff'] = data['transmited_data'] - previous_tx
 
 
 f = open('/opt/data_collector/stats_data','w')
-f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(received_data) + ' ' + str(transmited_data) + "\n") 
+f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
 f.close()
 
+os.system('ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40 > /opt/data_collector/process_list')
+data['process_list'] = open('/opt/data_collector/process_list', 'r').read()
 
+
+
+def post_to_api(data):
+	api_url = 'http://monx.me/api/test'
+	post_data = {
+			'cpu_load' 							: data['cpu_load'],
+			'io_load' 							: data['io_load'],
+			'process_list'					: data['process_list'],
+			'received_data' 				: data['received_data'],
+			'transmited_data' 			: data['transmited_data'],
+			'rx_diff' 							: data['rx_diff'],
+			'tx_diff' 							: data['tx_diff'],
+			'cpu_cores' 						: data['cpu_cores'],
+			'cpu_model' 	 					: data['cpu_model'],
+			'cpu_speed'							: data['cpu_speed'],
+			'load'									: data['load'],
+			'uname'									: data['uname'],
+			'uptime'								: data['uptime'],
+			'outer_nic'							: data['outer_nic'],
+			'open_files'						: data['open_files'],
+			'ipv4'									: data['ipv4'],
+			'open_files_limit'			:	data['open_files_limit'],
+			'number_of_logins'			: data['number_of_logins'],
+			'number_of_processes'		: data['number_of_processes'],
+			'number_of_connections' :	data['number_of_connections'],
+			'connection_list' 			: data['connection_list'],
+			'memtotal'							: data['memtotal'],
+			'memfree'								:	data['memfree'],
+			'memavailable'					: data['memavailable'],
+			'memcached' 						: data['memcached'],
+			'memswaptotal' 					: data['memswaptotal'],
+			'memswapfree' 					: data['memswapfree']
+	}
+
+	#req.add_header('Content-Type','application/json')
+	# try:
+	# 	r = requests.post(api_url, data=post_data)
+	r = requests.post(api_url, data=post_data)
+	# except HTTPError as e:
+	# 	print 'HTTP Issue while posting to API ' + str(e)
+	# except URLError as e:
+	# 	print 'L4 Issue while posting to API ' + str(e)
+	# except SocketError as e:
+	# 	print 'Socket Issue while posting to API ' + str(e)
+	# else:
+	# 	print 'sikur u bo'
+
+
+
+post_to_api(data)
 # print cpu_load
 # print io_load
 # print received_data
