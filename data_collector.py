@@ -194,5 +194,4 @@ def post_to_api(data):
 	# else:
 	# 	print 'sikur u bo'
 
-
 post_to_api(data)
