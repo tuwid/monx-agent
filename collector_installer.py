@@ -2,11 +2,14 @@
 
 # importing some stuff
 import os, subprocess
+import calendar
 import urllib2
+import time
 
 collector_directory = '/opt/data_collector/'
 devnull = open(os.devnull,"w")
 
+timenow = calendar.timegm(time.gmtime())
 
 if not os.geteuid() == 0:
 	print 'Script must be run as root'
@@ -40,34 +43,36 @@ if not os.path.exists(collector_directory):
 
 
 
-# getting data collector from the webz
-url = "https://raw.github.com/nodequery/nq-agent/master/nq-agent.sh"
+# # getting data collector from the webz
+# url = "https://raw.github.com/nodequery/nq-agent/master/nq-agent.sh"
 
-data_collector_file = collector_directory + url.split('/')[-1]
-# TODO: skip certificate 
-u = urllib2.urlopen(url)
-f = open(data_collector_file, 'wb')
-meta = u.info()
-file_size = int(meta.getheaders("Content-Length")[0])
-print "Downloading: %s Bytes: %s" % (data_collector_file, file_size)
+# data_collector_file = collector_directory + url.split('/')[-1]
+data_collector_file = '/home/tarak/Dropbox/data_collector/monx-agent/data_collector.py'
+# # TODO: skip certificate 
+# u = urllib2.urlopen(url)
+# f = open(data_collector_file, 'wb')
+# meta = u.info()
+# file_size = int(meta.getheaders("Content-Length")[0])
+# print "Downloading: %s Bytes: %s" % (data_collector_file, file_size)
 
-file_size_dl = 0
-block_sz = 8192
-while True:
-    buffer = u.read(block_sz)
-    if not buffer:
-        break
+# file_size_dl = 0
+# block_sz = 8192
+# while True:
+#     buffer = u.read(block_sz)
+#     if not buffer:
+#         break
 
-    file_size_dl += len(buffer)
-    f.write(buffer)
-    status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
-    status = status + chr(8)*(len(status)+1)
-    print status,
+#     file_size_dl += len(buffer)
+#     f.write(buffer)
+#     status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
+#     status = status + chr(8)*(len(status)+1)
+#     print status,
 
-f.close()
+# f.close()
 
 # setting the good stuff
 os.chmod(data_collector_file, 0744)
+
 
 # adding to cron
 os.system("crontab -l > /tmp/cronlist")
