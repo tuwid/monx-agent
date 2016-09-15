@@ -195,32 +195,4 @@ def post_to_api(data):
 	# 	print 'sikur u bo'
 
 
-
 post_to_api(data)
-# print cpu_load
-# print io_load
-# print received_data
-# print transmited_data
-# print rx_diff
-# print tx_diff
-# print cpu_cores
-# print cpu_model
-# print cpu_speed
-# print load
-# print uname
-# print uptime
-# print outer_nic
-# print open_files
-# print ipv4
-# print open_files_limit
-# print number_of_logins
-# print number_of_processes
-# print number_of_connections 
-# print connection_list 
-
-# print memtotal
-# print memfree
-# print memavailable
-# print memcached
-# print memswaptotal
-# print memswapfree
