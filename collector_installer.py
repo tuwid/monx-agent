@@ -2,14 +2,10 @@
 
 # importing some stuff
 import os, subprocess
-import calendar
-import urllib2
-import time
 
 collector_directory = '/opt/data_collector/'
 devnull = open(os.devnull,"w")
 
-timenow = calendar.timegm(time.gmtime())
 
 if not os.geteuid() == 0:
 	print 'Script must be run as root'
@@ -23,7 +19,6 @@ packages_debian = ['cron', 'python']
 # check packages if installed and running
 for pack in packages_debian:
 	retval = subprocess.call(["dpkg","-s",pack],stdout=devnull,stderr=subprocess.STDOUT)
-	devnull.close()
 	if retval != 0:
 		print 'Package ' + pack + ' is not installed!'
 		print 'Please install cron'
@@ -36,12 +31,14 @@ for pack in packages_debian:
 		except Exception, e:
 			print 'Cron installed but not running apparently'
 			print 'Proceeding anyway'
+devnull.close()
 
 # setting the environment
 if not os.path.exists(collector_directory):
 	os.makedirs(collector_directory)
 
-data_collector_file = collector_directory + data_collector.py
+data_collector_file = collector_directory + "data_collector.py"
+print data_collector_file
 
 
 os.system("cp data_collector.py " + data_collector_file)
