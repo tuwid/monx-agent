@@ -193,5 +193,4 @@ def post_to_api(data):
 	except SocketError as e:
 		print 'Socket Issue while posting to API ' + str(e)
 
-
 post_to_api(data)
