@@ -139,7 +139,11 @@ if os.path.exists('/opt/data_collector/stats_data'):
 
 	if(data['transmited_data'] > previous_tx ):
 		data['tx_diff'] = data['transmited_data'] - previous_tx
-
+else:
+	data['cpu_load'] = -1
+	data['io_load'] = -1
+	data['rx_diff'] = -1
+	data['tx_diff'] = -1
 
 f = open('/opt/data_collector/stats_data','w')
 f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
@@ -193,4 +197,6 @@ def post_to_api(data):
 	except SocketError as e:
 		print 'Socket Issue while posting to API ' + str(e)
 
-post_to_api(data)
+
+if(data['cpu_load'] != '-1'):
+	post_to_api(data)
