@@ -3,12 +3,13 @@
 # importing some stuff
 # from urllib2 import Request, urlopen, URLError, HTTPError
 # from socket import error as SocketError
-import requests
+from urllib2 import Request, urlopen, URLError, HTTPError
+from socket import error as SocketError
 import os, subprocess
 import platform
-# import urllib2
 import calendar
 import time
+import json
 
 
 data = {}
@@ -181,17 +182,16 @@ def post_to_api(data):
 			'memswapfree' 					: data['memswapfree']
 	}
 
-	#req.add_header('Content-Type','application/json')
-	# try:
-	# 	r = requests.post(api_url, data=post_data)
-	r = requests.post(api_url, data=post_data)
-	# except HTTPError as e:
-	# 	print 'HTTP Issue while posting to API ' + str(e)
-	# except URLError as e:
-	# 	print 'L4 Issue while posting to API ' + str(e)
-	# except SocketError as e:
-	# 	print 'Socket Issue while posting to API ' + str(e)
-	# else:
-	# 	print 'sikur u bo'
+	req = Request(api_url)
+	req.add_header('Content-Type','application/json')
+	try:
+		urlopen(req,json.dumps({'data' : data}))
+	except HTTPError as e:
+		print 'HTTP Issue while posting to API ' + str(e)
+	except URLError as e:
+		print 'L4 Issue while posting to API ' + str(e)
+	except SocketError as e:
+		print 'Socket Issue while posting to API ' + str(e)
+
 
 post_to_api(data)
