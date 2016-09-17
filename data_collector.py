@@ -12,68 +12,157 @@ import time
 import json
 
 
+api_key = '123456789'
+#api_url = 'http://monx.me/api/v1/test-store-data'
+api_url = 'http://monx.me/api/v1/store-data/' + api_key
+
 data = {}
 
+def check_for_root():
+	if not os.geteuid() == 0:
+		print 'Script must be run as root'
+		exit(1)
+	else:
+		print "Root check OK"
 
-with open('/proc/uptime', 'r') as f:
-	data['uptime'] = f.readline().rstrip().split()[0]
+def check_uptime():
+	with open('/proc/uptime', 'r') as f:
+		return f.readline().rstrip().split()[0]
 
-data['number_of_logins'] = len(subprocess.check_output("who").rstrip().split("\n"))
+def check_loadavg():
+	with open('/proc/loadavg', 'r') as f:
+		return f.readline().rstrip().split()
 
-# with threads , the number is lower by just getting the procs
-data['number_of_processes'] = len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+def check_connection_list():
+	connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
+	return connection_list.split("\n",2)[2].split("\n");
 
-with open('/proc/loadavg', 'r') as f:
-	data['load'] = f.readline().rstrip().split()
+def check_number_of_logins():
+	return len(subprocess.check_output("who").rstrip().split("\n"))
 
-with open('/proc/meminfo', 'r') as f:
-	meminfo = f.readlines()
+def check_number_of_processes():
+	return len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
-for memi in meminfo:
-	temp = memi.rstrip().split(': ')
-	if (temp[0] == 'MemTotal'):
-		data['memtotal'] = temp[1].strip()
-	if (temp[0] == 'MemFree'):
-		data['memfree'] = temp[1].strip()
-	if (temp[0] == 'MemAvailable'):
-		data['memavailable'] = temp[1].strip()
-	if (temp[0] == 'Cached'):
-		data['memcached'] = temp[1].strip()
-	if (temp[0] == 'SwapTotal'):
-		data['memswaptotal'] = temp[1].strip()
-	if (temp[0] == 'SwapFree'):
-		data['memswapfree'] = temp[1].strip()
+def check_number_of_connections():
+	return len(subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
+def check_process_list():
+	os.system('ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40 > /opt/data_collector/process_list')
+	return open('/opt/data_collector/process_list', 'r').read().split("\n")
 
-connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
-data['connection_list'] = connection_list.split("\n",2)[2];
+def check_file_limits():
+	with open('/proc/sys/fs/file-nr', 'r') as f:
+		o_files = f.readline().rstrip().split()
+		return o_files[0], o_files[2]
 
+def check_cpu_info():
+	cpu_model = ""
+	cpu_cores = 0
+	cpu_speed = 0
+	for line in open('/proc/cpuinfo'):
+		if "model name" in line:
+			cpu_model = line.rstrip().split(': ')[1]
+		if "processor" in line:
+			cpu_cores +=1
+		if "cpu MHz" in line:
+			cpu_speed = line.rstrip().split(': ')[1] + " MHz"
+	return cpu_model,cpu_cores,cpu_speed
+
+def check_memory():
+	with open('/proc/meminfo', 'r') as f:
+		meminfo = f.readlines()
+
+	for memi in meminfo:
+		temp = memi.rstrip().split(': ')
+		if (temp[0] == 'MemTotal'):
+			memtotal = temp[1].strip()
+		if (temp[0] == 'MemFree'):
+			membuffers = temp[1].strip()
+		if (temp[0] == 'Buffers'):
+			memavailable = temp[1].strip()
+		if (temp[0] == 'Cached'):
+			memcached = temp[1].strip()
+		if (temp[0] == 'SwapTotal'):
+			memswaptotal = temp[1].strip()
+		if (temp[0] == 'SwapFree'):
+			memswapfree = temp[1].strip()
+	return memtotal,membuffers,memavailable,memcached,memswaptotal,memswapfree
+
+def check_outer_nic():
+	route = "/proc/net/route"
+	with open(route) as f:
+			for line in f.readlines():
+					try:
+							iface, dest, _, flags, _, _, _, _, _, _, _, =  line.strip().split()
+							if dest != '00000000' or not int(flags, 16) & 2:
+									continue
+							return iface
+					except:
+							continue
+
+def post_to_api(data):
+	post_data = {
+			'cpu_load' 							: data['cpu_load'],
+			'io_load' 							: data['io_load'],
+			'process_list'					: data['process_list'],
+			'received_data' 				: data['received_data'],
+			'transmited_data' 			: data['transmited_data'],
+			'rx_diff' 							: data['rx_diff'],
+			'tx_diff' 							: data['tx_diff'],
+			'cpu_cores' 						: data['cpu_cores'],
+			'cpu_model' 	 					: data['cpu_model'],
+			'cpu_speed'							: data['cpu_speed'],
+			'load'									: data['load'],
+			'uname'									: data['uname'],
+			'uptime'								: data['uptime'],
+			'outer_nic'							: data['outer_nic'],
+			'open_files'						: data['open_files'],
+			'ipv4'									: data['ipv4'],
+			'open_files_limit'			:	data['open_files_limit'],
+			'number_of_logins'			: data['number_of_logins'],
+			'number_of_processes'		: data['number_of_processes'],
+			'number_of_connections' :	data['number_of_connections'],
+			'connection_list' 			: data['connection_list'],
+			'memtotal'							: data['memtotal'],
+			'membuffers'								:	data['membuffers'],
+			'memavailable'					: data['memavailable'],
+			'memcached' 						: data['memcached'],
+			'memswaptotal' 					: data['memswaptotal'],
+			'memswapfree' 					: data['memswapfree']
+	}
+	print post_data
+	req = Request(api_url)
+	req.add_header('Content-Type','application/json')
+	req.add_header('X-Merhaba-From','x-monx-api')
+	try:
+		response = urlopen(req,json.dumps({'data' : post_data}))
+	except HTTPError as e:
+		print 'HTTP Issue while posting to API ' + str(e)
+	except URLError as e:
+		print 'L4 Issue while posting to API ' + str(e)
+	except SocketError as e:
+		print 'Socket Issue while posting to API ' + str(e)
+	print response.code
+
+check_for_root()
+
+data['load'] = check_loadavg()
+data['uptime'] = check_uptime() 
 data['uname'] = platform.uname()
+data['outer_nic'] = check_outer_nic()
+data['process_list'] = check_process_list() 
+data['connection_list'] = check_connection_list()
+data['number_of_logins'] = check_number_of_logins()
+data['number_of_processes'] = check_number_of_processes()
+data['number_of_connections'] = check_number_of_connections() 
+data['open_files'] , data['open_files_limit'] = check_file_limits()
+data['cpu_model'] , data['cpu_cores'] , data['cpu_speed'] = check_cpu_info()
+data['memtotal'],data['membuffers'],data['memavailable'],data['memcached'],data['memswaptotal'],data['memswapfree'] = check_memory()
 
-data['number_of_connections'] = len(connection_list.rstrip().split("\n"))
 #TODO
 #connection_stats ESTABLISHED, WAIT etc ..
 #TODO
-#if /var/log/nginx/aaccess.log | /usr/local/apache/logs/error_log | 
-
-# file stuff
-with open('/proc/sys/fs/file-nr', 'r') as f:
-	o_files = f.readline().rstrip().split()
-
-data['open_files'] = o_files[0]
-data['open_files_limit'] = o_files[2]
-
-data['cpu_model'] = ""
-data['cpu_cores'] = 0
-data['cpu_speed'] = 0
-
-for line in open('/proc/cpuinfo'):
-	if "model name" in line:
-		data['cpu_model'] = line.rstrip().split(': ')[1]
-	if "processor" in line:
-		data['cpu_cores'] +=1
-	if "cpu MHz" in line:
-		data['cpu_speed'] = line.rstrip().split(': ')[1] + " MHz"
+#if /var/log/nginx/access.log || /usr/local/apache/logs/error_log | 
 
 timenow = int(calendar.timegm(time.gmtime()))
 
@@ -87,18 +176,6 @@ current_cpu = general_stats[0] + general_stats[1] + general_stats[2] + general_s
 current_io = general_stats[3] + general_stats[4]   
 current_idle = general_stats[3]   
 
-data['outer_nic'] = ""
-
-route = "/proc/net/route"
-with open(route) as f:
-		for line in f.readlines():
-				try:
-						iface, dest, _, flags, _, _, _, _, _, _, _, =  line.strip().split()
-						if dest != '00000000' or not int(flags, 16) & 2:
-								continue
-						data['outer_nic'] = iface
-				except:
-						continue
 
 with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as f:
 	data['received_data'] = int(f.readline().rstrip())
@@ -149,54 +226,6 @@ f = open('/opt/data_collector/stats_data','w')
 f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
 f.close()
 
-os.system('ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40 > /opt/data_collector/process_list')
-data['process_list'] = open('/opt/data_collector/process_list', 'r').read()
-
-
-
-def post_to_api(data):
-	api_url = 'http://monx.me/api/test'
-	post_data = {
-			'cpu_load' 							: data['cpu_load'],
-			'io_load' 							: data['io_load'],
-			'process_list'					: data['process_list'],
-			'received_data' 				: data['received_data'],
-			'transmited_data' 			: data['transmited_data'],
-			'rx_diff' 							: data['rx_diff'],
-			'tx_diff' 							: data['tx_diff'],
-			'cpu_cores' 						: data['cpu_cores'],
-			'cpu_model' 	 					: data['cpu_model'],
-			'cpu_speed'							: data['cpu_speed'],
-			'load'									: data['load'],
-			'uname'									: data['uname'],
-			'uptime'								: data['uptime'],
-			'outer_nic'							: data['outer_nic'],
-			'open_files'						: data['open_files'],
-			'ipv4'									: data['ipv4'],
-			'open_files_limit'			:	data['open_files_limit'],
-			'number_of_logins'			: data['number_of_logins'],
-			'number_of_processes'		: data['number_of_processes'],
-			'number_of_connections' :	data['number_of_connections'],
-			'connection_list' 			: data['connection_list'],
-			'memtotal'							: data['memtotal'],
-			'memfree'								:	data['memfree'],
-			'memavailable'					: data['memavailable'],
-			'memcached' 						: data['memcached'],
-			'memswaptotal' 					: data['memswaptotal'],
-			'memswapfree' 					: data['memswapfree']
-	}
-
-	req = Request(api_url)
-	req.add_header('Content-Type','application/json')
-	try:
-		urlopen(req,json.dumps({'data' : data}))
-	except HTTPError as e:
-		print 'HTTP Issue while posting to API ' + str(e)
-	except URLError as e:
-		print 'L4 Issue while posting to API ' + str(e)
-	except SocketError as e:
-		print 'Socket Issue while posting to API ' + str(e)
-
-
+#print data
 if(data['cpu_load'] != '-1'):
 	post_to_api(data)
