@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
 # importing some stuff
-# from urllib2 import Request, urlopen, URLError, HTTPError
-# from socket import error as SocketError
 from urllib2 import Request, urlopen, URLError, HTTPError
 from socket import error as SocketError
 import os, subprocess
@@ -11,7 +9,7 @@ import calendar
 import time
 import json
 
-
+agent_version = '1.0.8'
 api_key = '123456789'
 #api_url = 'http://monx.me/api/v1/test-store-data'
 api_url = 'http://monx.me/api/v1/store-data/' + api_key
@@ -47,8 +45,8 @@ def check_number_of_connections():
 	return len(subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
 def check_process_list():
-	os.system('ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40 > /opt/data_collector/process_list')
-	return open('/opt/data_collector/process_list', 'r').read().split("\n")
+	ps = subprocess.Popen("ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+	return ps.communicate()[0].split("\n")
 
 def check_file_limits():
 	with open('/proc/sys/fs/file-nr', 'r') as f:
@@ -77,16 +75,20 @@ def check_memory():
 		if (temp[0] == 'MemTotal'):
 			memtotal = temp[1].strip()
 		if (temp[0] == 'MemFree'):
-			membuffers = temp[1].strip()
+			memfree = temp[1].strip()
 		if (temp[0] == 'Buffers'):
-			memavailable = temp[1].strip()
+			membuffers = temp[1].strip()
 		if (temp[0] == 'Cached'):
 			memcached = temp[1].strip()
 		if (temp[0] == 'SwapTotal'):
 			memswaptotal = temp[1].strip()
 		if (temp[0] == 'SwapFree'):
 			memswapfree = temp[1].strip()
-	return memtotal,membuffers,memavailable,memcached,memswaptotal,memswapfree
+	return memtotal,membuffers,memfree,memcached,memswaptotal,memswapfree
+
+def check_disks():
+	ps = subprocess.Popen("df -h | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+	return ps.communicate()[0].split("\n")
 
 def check_outer_nic():
 	route = "/proc/net/route"
@@ -102,6 +104,7 @@ def check_outer_nic():
 
 def post_to_api(data):
 	post_data = {
+			'agent_version'					:	data['agent_version'],
 			'cpu_load' 							: data['cpu_load'],
 			'io_load' 							: data['io_load'],
 			'process_list'					: data['process_list'],
@@ -113,6 +116,7 @@ def post_to_api(data):
 			'cpu_model' 	 					: data['cpu_model'],
 			'cpu_speed'							: data['cpu_speed'],
 			'load'									: data['load'],
+			'disks'									: data['disks'],
 			'uname'									: data['uname'],
 			'uptime'								: data['uptime'],
 			'outer_nic'							: data['outer_nic'],
@@ -124,18 +128,19 @@ def post_to_api(data):
 			'number_of_connections' :	data['number_of_connections'],
 			'connection_list' 			: data['connection_list'],
 			'memtotal'							: data['memtotal'],
-			'membuffers'								:	data['membuffers'],
-			'memavailable'					: data['memavailable'],
+			'membuffers'						:	data['membuffers'],
+			'memfree'								: data['memfree'],
 			'memcached' 						: data['memcached'],
 			'memswaptotal' 					: data['memswaptotal'],
 			'memswapfree' 					: data['memswapfree']
 	}
+
 	print post_data
 	req = Request(api_url)
 	req.add_header('Content-Type','application/json')
 	req.add_header('X-Merhaba-From','x-monx-api')
 	try:
-		response = urlopen(req,json.dumps({'data' : post_data}))
+		response = urlopen(req,json.dumps(post_data))
 	except HTTPError as e:
 		print 'HTTP Issue while posting to API ' + str(e)
 	except URLError as e:
@@ -146,10 +151,12 @@ def post_to_api(data):
 
 check_for_root()
 
+data['disks'] = check_disks()
 data['load'] = check_loadavg()
 data['uptime'] = check_uptime() 
 data['uname'] = platform.uname()
 data['outer_nic'] = check_outer_nic()
+data['agent_version'] = agent_version
 data['process_list'] = check_process_list() 
 data['connection_list'] = check_connection_list()
 data['number_of_logins'] = check_number_of_logins()
@@ -157,7 +164,7 @@ data['number_of_processes'] = check_number_of_processes()
 data['number_of_connections'] = check_number_of_connections() 
 data['open_files'] , data['open_files_limit'] = check_file_limits()
 data['cpu_model'] , data['cpu_cores'] , data['cpu_speed'] = check_cpu_info()
-data['memtotal'],data['membuffers'],data['memavailable'],data['memcached'],data['memswaptotal'],data['memswapfree'] = check_memory()
+data['memtotal'],data['membuffers'],data['memfree'],data['memcached'],data['memswaptotal'],data['memswapfree'] = check_memory()
 
 #TODO
 #connection_stats ESTABLISHED, WAIT etc ..
@@ -226,6 +233,6 @@ f = open('/opt/data_collector/stats_data','w')
 f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
 f.close()
 
-#print data
+print data
 if(data['cpu_load'] != '-1'):
 	post_to_api(data)
