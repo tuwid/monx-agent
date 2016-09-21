@@ -190,7 +190,7 @@ with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as
 with open('/sys/class/net/' + data['outer_nic'] + '/statistics/tx_bytes', 'r') as f:
 	data['transmited_data'] = int(f.readline().rstrip())
 
-f = os.popen('ifconfig ' + data['outer_nic'] + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
+f = os.popen('/sbin/ifconfig ' + data['outer_nic'] + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
 data['ipv4'] = f.read().rstrip()
 
 # try catch ktu + check non empty
@@ -233,6 +233,6 @@ f = open('/opt/data_collector/stats_data','w')
 f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
 f.close()
 
-print data
+#print data
 if(data['cpu_load'] != '-1'):
 	post_to_api(data)
