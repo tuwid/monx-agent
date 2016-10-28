@@ -86,6 +86,8 @@ def check_memory():
 			memswapfree = temp[1].strip()
 	return memtotal,membuffers,memfree,memcached,memswaptotal,memswapfree
 
+# duhen shtu te gjitha, jo vec / 
+# sepse cdo particion ka rendesi
 def check_disks():
 	ps = subprocess.Popen("df -h | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
 	return ps.communicate()[0].split("\n")
@@ -115,7 +117,7 @@ def post_to_api(data):
 			'cpu_cores' 						: data['cpu_cores'],
 			'cpu_model' 	 					: data['cpu_model'],
 			'cpu_speed'							: data['cpu_speed'],
-			'load'									: data['load'],
+			'load_proc'									: data['load'],
 			'disks'									: data['disks'],
 			'uname'									: data['uname'],
 			'uptime'								: data['uptime'],
@@ -190,6 +192,7 @@ with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as
 with open('/sys/class/net/' + data['outer_nic'] + '/statistics/tx_bytes', 'r') as f:
 	data['transmited_data'] = int(f.readline().rstrip())
 
+# TODO: /sbin/ip addr show br0 | grep inet | awk '{print $2}' 
 f = os.popen('/sbin/ifconfig ' + data['outer_nic'] + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
 data['ipv4'] = f.read().rstrip()
 
@@ -236,3 +239,4 @@ f.close()
 #print data
 if(data['cpu_load'] != '-1'):
 	post_to_api(data)
+	#pprint.pprint(data)

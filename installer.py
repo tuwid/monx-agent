@@ -4,8 +4,6 @@
 import os, subprocess
 
 collector_directory = '/opt/data_collector/'
-devnull = open(os.devnull,"w")
-
 
 if not os.geteuid() == 0:
 	print 'Script must be run as root'
@@ -13,25 +11,17 @@ if not os.geteuid() == 0:
 else:
 	print "Root check OK"
 
+if len( os.popen("ps -aef | grep -i ' cron' | grep -v 'grep' | awk '{ print $3 }' | head -1" ).read().strip().split( '\n' ) ) >= 1:
+	print 'Cron process seem running'
+else:
+	print 'Unable to find cron, please install cron first'
+	exit(1)
 
-packages_debian = ['cron', 'python']
-
-# check packages if installed and running
-for pack in packages_debian:
-	retval = subprocess.call(["dpkg","-s",pack],stdout=devnull,stderr=subprocess.STDOUT)
-	if retval != 0:
-		print 'Package ' + pack + ' is not installed!'
-		print 'Please install cron'
-		exit(1)
-	else:
-		print 'Package ' + pack + ' is installed!'
-		try:
-			if len( os.popen("ps -aef | grep -i 'cron' | grep -v 'grep' | awk '{ print $3 }'" ).read().strip().split( '\n' ) ) >= 1:
-				print 'Cron process seem running'
-		except Exception, e:
-			print 'Cron installed but not running apparently'
-			print 'Proceeding anyway'
-devnull.close()
+if os.popen("python -V" ).read().strip().find("Python 2") == -1:
+	print 'Python is installed'
+else:
+	print 'Unable to find python 2.6/2.7, please install python 2.6/2.7 first'
+	exit(1)
 
 # setting the environment
 if not os.path.exists(collector_directory):
@@ -40,12 +30,8 @@ if not os.path.exists(collector_directory):
 data_collector_file = collector_directory + "data_collector.py"
 print data_collector_file
 
-
 os.system("cp data_collector.py " + data_collector_file)
-
 os.chmod(data_collector_file, 0744)
-
-
 
 # adding to cron
 os.system("crontab -l > /tmp/cronlist")
