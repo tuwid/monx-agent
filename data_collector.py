@@ -89,7 +89,7 @@ def check_memory():
 # duhen shtu te gjitha, jo vec / 
 # sepse cdo particion ka rendesi
 def check_disks():
-	ps = subprocess.Popen("df -h | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+	ps = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
 	return ps.communicate()[0].split("\n")
 
 def check_outer_nic():
