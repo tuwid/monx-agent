@@ -36,7 +36,7 @@ def check_connection_list():
 	return connection_list.split("\n",2)[2].split("\n");
 
 def check_number_of_logins():
-	return len(subprocess.check_output("who").rstrip().split("\n"))
+	return len(subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
 def check_number_of_processes():
 	return len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
