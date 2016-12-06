@@ -4,15 +4,15 @@
 from urllib2 import Request, urlopen, URLError, HTTPError
 from socket import error as SocketError
 import os, subprocess
+import ConfigParser
 import platform
 import calendar
 import time
 import json
 
+
+
 agent_version = '1.0.8'
-api_key = '123456789'
-#api_url = 'http://monx.me/api/v1/test-store-data'
-api_url = 'http://monx.me/api/v1/store-data/' + api_key
 
 data = {}
 
@@ -33,7 +33,7 @@ def check_loadavg():
 
 def check_connection_list():
 	connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
-	return connection_list.split("\n",2)[2].split("\n");
+	return connection_list.split("\n")
 
 def check_number_of_logins():
 	return len(subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
@@ -137,12 +137,20 @@ def post_to_api(data):
 			'memswapfree' 					: data['memswapfree']
 	}
 
-	print post_data
+	Config = ConfigParser.ConfigParser()
+	Config.read('/opt/data_collector/default.conf')
+
+	api_key = Config.get('default', 'API_KEY' )
+	api_url = Config.get('default', 'API_URL' )
+	api_url = api_url + api_key
+	
+	#print post_data
 	req = Request(api_url)
 	req.add_header('Content-Type','application/json')
 	req.add_header('X-Merhaba-From','x-monx-api')
 	try:
 		response = urlopen(req,json.dumps(post_data))
+		print response.read()
 	except HTTPError as e:
 		print 'HTTP Issue while posting to API ' + str(e)
 	except URLError as e:
