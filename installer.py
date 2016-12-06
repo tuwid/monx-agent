@@ -38,9 +38,9 @@ if not os.path.exists(collector_directory):
 
 cfgfile = open(collector_directory + 'default.conf','w')
 
-Config.add_section('default')
-Config.set('default','API_KEY',api_key)
-Config.set('default','API_URL','http://monx.me/api/v1/store-data/')
+Config.add_section('settings')
+Config.set('settings','API_KEY',api_key)
+Config.set('settings','API_URL','http://monx.me/api/v1/store-data/')
 Config.write(cfgfile)
 
 cfgfile.close()

@@ -140,8 +140,8 @@ def post_to_api(data):
 	Config = ConfigParser.ConfigParser()
 	Config.read('/opt/data_collector/default.conf')
 
-	api_key = Config.get('default', 'API_KEY' )
-	api_url = Config.get('default', 'API_URL' )
+	api_key = Config.get('settings', 'API_KEY' )
+	api_url = Config.get('settings', 'API_URL' )
 	api_url = api_url + api_key
 	
 	#print post_data
