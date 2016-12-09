@@ -59,4 +59,4 @@ os.system("crontab < /tmp/cronlist")
 os.system("rm /tmp/cronlist")
 
 print "\n Excellent"
-print 'Data collector installed! You should be albe to see the data in the pannel in a minute or so'
+print 'Monx Agent installed! You should be albe to see the data in the panel in a minute or so'
