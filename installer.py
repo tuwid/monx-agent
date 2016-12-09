@@ -54,7 +54,7 @@ os.chmod(data_collector_file, 0744)
 
 # adding to cron
 os.system("crontab -l > /tmp/cronlist")
-os.system("echo '*/2 * * * *	" + data_collector_file + "' >> /tmp/cronlist")
+os.system("echo '*/2 * * * *	" + data_collector_file + ' > /dev/null 2>&1' + "' >> /tmp/cronlist")
 os.system("crontab < /tmp/cronlist")
 os.system("rm /tmp/cronlist")
 
