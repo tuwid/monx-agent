@@ -11,7 +11,7 @@ import time
 import json
 
 
-
+debug = False
 agent_version = '1.0.8'
 
 data = {}
@@ -247,4 +247,5 @@ f.close()
 #print data
 if(data['cpu_load'] != '-1'):
 	post_to_api(data)
-	#pprint.pprint(data)
+	if (debug):
+		print(data)
