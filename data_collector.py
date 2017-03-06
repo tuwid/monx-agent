@@ -1,13 +1,9 @@
 #!/usr/bin/python
 
 # importing some stuff
+import os, subprocess, ConfigParser, platform, calendar, urllib, time, json, sys
 from urllib2 import Request, urlopen, URLError, HTTPError
 from socket import error as SocketError
-import os, subprocess
-import ConfigParser
-import platform
-import calendar,urllib
-import time,json,sys
 #import ssl
 
 debug = False
@@ -57,7 +53,7 @@ def check_file_limits():
         return o_files[0], o_files[2]
 
 def check_update():
-    urllib2.urlretrieve ('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py', "/opt/data_collector/data_collector.py")
+    urllib.urlretrieve ('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py', "/opt/data_collector/data_collector.py")
     subprocess.call(['chmod', '0755', '/opt/data_collector/data_collector.py'])
     exit(1)
 
