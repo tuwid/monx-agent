@@ -6,15 +6,14 @@ from socket import error as SocketError
 import os, subprocess
 import ConfigParser
 import platform
-import calendar
-import time
-import json
+import calendar,urllib
+import time,json,sys
+#import ssl
 
 debug = False
-agent_version = '1.0.8'
+agent_version = '1.0.9'
 
 data = {}
-
 
 def check_for_root():
     if not os.geteuid() == 0:
@@ -22,6 +21,10 @@ def check_for_root():
         exit(1)
     else:
         print('Root check OK')
+
+def check_last_installed():
+    with open('/proc/uptime', 'r') as f:
+        return f.readline().rstrip().split()[0]
 
 def check_uptime():
     with open('/proc/uptime', 'r') as f:
@@ -36,7 +39,7 @@ def check_connection_list():
     return connection_list.split("\n")
 
 def check_number_of_logins():
-    return len(subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+    return subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
 
 def check_number_of_processes():
     return len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
@@ -52,6 +55,11 @@ def check_file_limits():
     with open('/proc/sys/fs/file-nr', 'r') as f:
         o_files = f.readline().rstrip().split()
         return o_files[0], o_files[2]
+
+def check_update():
+    urllib2.urlretrieve ('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py', "/opt/data_collector/data_collector.py")
+    subprocess.call(['chmod', '0755', '/opt/data_collector/data_collector.py'])
+    exit(1)
 
 def check_cpu_info():
     cpu_model = ""
@@ -163,6 +171,9 @@ def post_to_api(data):
     print response.code
 
 check_for_root()
+
+if(len(sys.argv) > 1 and sys.argv[1] == '-u'):
+    check_update()
 
 data['disks'] = check_disks()
 data['load'] = check_loadavg()
