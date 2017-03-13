@@ -107,7 +107,17 @@ def check_disks():
 # possible bug on virtualized 
 # default dev venet0  scope link
 def check_outer_nic():
-    return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
+    route = '/proc/net/route'
+    with open(route) as f:
+        for line in f.readlines():
+            try:
+                iface, dest, _, flags, _, _, _, _, _, _, _, =  line.strip().split()
+                if dest != '00000000' or not int(flags, 16) & 2:
+                        continue
+                return iface
+            except:
+                    continue
+#    return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
 
 def post_to_api(data):
     post_data = {
