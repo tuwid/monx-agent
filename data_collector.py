@@ -19,8 +19,14 @@ def check_for_root():
         print('Root check OK')
 
 def check_last_installed():
-    with open('/proc/uptime', 'r') as f:
-        return f.readline().rstrip().split()[0]
+    if os.path.exists('/var/log/yum.log'):
+        return os.path.getmtime('/var/log/yum.log')
+    elif os.path.exists('/var/log/dpkg.log'):
+        return os.path.getmtime('/var/log/dpkg.log')
+    elif os.path.exists('/var/log/YaST2/y2logRPM'):
+        return os.path.getmtime('/var/log/YaST2/y2logRPM')
+    else:
+        return '-1'
 
 def check_uptime():
     with open('/proc/uptime', 'r') as f:
@@ -98,9 +104,10 @@ def check_disks():
     ps = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     return ps.communicate()[0].split("\n")
 
-
+# possible bug on virtualized 
+# default dev venet0  scope link
 def check_outer_nic():
-    return subprocess.Popen("ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
+    return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
 
 def post_to_api(data):
     post_data = {
@@ -121,7 +128,8 @@ def post_to_api(data):
             'uptime'								: data['uptime'],
             'outer_nic'							: data['outer_nic'],
             'open_files'						: data['open_files'],
-            'ipv4'									: data['ipv4'],
+            'ips'                                   : data['ips'],
+            'last_installed'        				: data['last_installed'],
             'open_files_limit'			:	data['open_files_limit'],
             'number_of_logins'			: data['number_of_logins'],
             'number_of_processes'		: data['number_of_processes'],
@@ -167,6 +175,7 @@ data['uptime'] = check_uptime()
 data['uname'] = platform.uname()
 data['outer_nic'] = check_outer_nic()
 data['agent_version'] = agent_version
+data['last_installed'] = check_last_installed()
 data['process_list'] = check_process_list() 
 data['connection_list'] = check_connection_list()
 data['number_of_logins'] = check_number_of_logins()
@@ -201,10 +210,11 @@ with open('/sys/class/net/' + data['outer_nic'] + '/statistics/tx_bytes', 'r') a
     data['transmited_data'] = int(f.readline().rstrip())
 
 # TODO: /sbin/ip addr show br0 | grep inet | awk '{print $2}' 
-f = os.popen('/sbin/ifconfig ' + data['outer_nic'] + ' | grep "inet\ addr" | cut -d: -f2 | cut -d" " -f1')
-data['ipv4'] = f.read().rstrip()
+f = os.popen('/sbin/ip addr | grep inet | awk \'{print $2}\'')
+data['ips'] = f.read()
+f.close()
 
-# try catch ktu + check non empty
+# TODO: try catch ktu + check non empty
 if os.path.exists('/opt/data_collector/stats_data'):
     with open('/opt/data_collector/stats_data', 'r') as f:
         previous_stats = map(int, f.readline().rstrip().split())
