@@ -28,7 +28,7 @@ version=$(python -V 2>&1 | grep -Po '(?<=Python )(.+)')
 if [[ -z "$version" ]]
 then
     echo "No Python! -- Installing minimal python"
-    test -e /usr/bin/apt || (apt -y update && apt install -y python-minimal)
+    test -e /usr/bin/apt && (apt -y update && apt install -y python-minimal)
 fi
 
 wget --no-check-certificate https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py \
