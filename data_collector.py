@@ -1,15 +1,23 @@
 #!/usr/bin/python
 
 # importing some stuff
-import os, subprocess, ConfigParser, platform, calendar, urllib, time, json, sys
-from urllib2 import Request, urlopen, URLError, HTTPError
+import ConfigParser
+import calendar
+import json
+import os
+import platform
+import subprocess
+import sys
+import time
+import urllib
 from socket import error as SocketError
-#import ssl
+from urllib2 import Request, urlopen, URLError, HTTPError
 
 debug = False
-agent_version = '1.0.9'
+agent_version = '1.0.10'
 
 data = {}
+
 
 def check_for_root():
     if not os.geteuid() == 0:
@@ -17,6 +25,7 @@ def check_for_root():
         exit(1)
     else:
         print('Root check OK')
+
 
 def check_last_installed():
     if os.path.exists('/var/log/yum.log'):
@@ -28,40 +37,52 @@ def check_last_installed():
     else:
         return '-1'
 
+
 def check_uptime():
     with open('/proc/uptime', 'r') as f:
         return f.readline().rstrip().split()[0]
+
 
 def check_loadavg():
     with open('/proc/loadavg', 'r') as f:
         return f.readline().rstrip().split()
 
+
 def check_connection_list():
     connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
     return connection_list.split("\n")
 
+
 def check_number_of_logins():
     return subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
+
 
 def check_number_of_processes():
     return len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
+
 def check_number_of_connections():
     return len(subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
 
+
 def check_process_list():
-    ps = subprocess.Popen("ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    ps = subprocess.Popen("ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40",
+                          shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ps.communicate()[0].split("\n")
+
 
 def check_file_limits():
     with open('/proc/sys/fs/file-nr', 'r') as f:
         o_files = f.readline().rstrip().split()
         return o_files[0], o_files[2]
 
+
 def check_update():
-    urllib.urlretrieve ('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py', "/opt/data_collector/data_collector.py")
+    urllib.urlretrieve('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py',
+                       "/opt/data_collector/data_collector.py")
     subprocess.call(['chmod', '0755', '/opt/data_collector/data_collector.py'])
     exit(1)
+
 
 def check_cpu_info():
     cpu_model = ""
@@ -71,10 +92,14 @@ def check_cpu_info():
         if "model name" in line:
             cpu_model = line.rstrip().split(': ')[1]
         if "processor" in line:
-            cpu_cores +=1
+            cpu_cores += 1
         if "cpu MHz" in line:
             cpu_speed = line.rstrip().split(': ')[1] + " MHz"
-    return cpu_model,cpu_cores,cpu_speed
+    cpu_info = subprocess.Popen("lscpu | egrep '^Thread|^Core|^Socket|^CPU\('", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    cpu_thread_data = cpu_info.communicate()[0]
+
+    return cpu_model, cpu_cores, cpu_speed, cpu_thread_data
+
 
 def check_memory():
     with open('/proc/meminfo', 'r') as f:
@@ -94,63 +119,73 @@ def check_memory():
             memswaptotal = temp[1].strip()
         if temp[0] == 'SwapFree':
             memswapfree = temp[1].strip()
-    return memtotal,membuffers,memfree,memcached,memswaptotal,memswapfree
-
-# duhen shtu te gjitha, jo vec / 
-# sepse cdo particion ka rendesi
+    return memtotal, membuffers, memfree, memcached, memswaptotal, memswapfree
 
 
 def check_disks():
-    ps = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    return ps.communicate()[0].split("\n")
+    root_d = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    all_d = subprocess.Popen("df -k | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # all_inodes = subprocess.Popen("df -i | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
+    #                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-# possible bug on virtualized 
+    root_disk = root_d.communicate()[0].split("\n")
+    all_disks = all_d.communicate()[0].split("\n")
+
+    return root_disk, all_disks
+
+
+# possible bug on virtualized
 # default dev venet0  scope link
 def check_outer_nic():
-    route = '/proc/net/route'
-    with open(route) as f:
+    with open('/proc/net/route') as f:
         for line in f.readlines():
             try:
-                iface, dest, _, flags, _, _, _, _, _, _, _, =  line.strip().split()
+                iface, dest, _, flags, _, _, _, _, _, _, _, = line.strip().split()
                 if dest != '00000000' or not int(flags, 16) & 2:
-                        continue
+                    continue
                 return iface
             except:
-                    continue
-#    return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
+                continue
+
+
+# return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
 
 def post_to_api(data):
     post_data = {
-            'agent_version'					:	data['agent_version'],
-            'cpu_load' 							: data['cpu_load'],
-            'io_load' 							: data['io_load'],
-            'process_list'					: data['process_list'],
-            'received_data' 				: data['received_data'],
-            'transmited_data' 			: data['transmited_data'],
-            'rx_diff' 							: data['rx_diff'],
-            'tx_diff' 							: data['tx_diff'],
-            'cpu_cores' 						: data['cpu_cores'],
-            'cpu_model' 	 					: data['cpu_model'],
-            'cpu_speed'							: data['cpu_speed'],
-            'load_proc'									: data['load'],
-            'disks'									: data['disks'],
-            'uname'									: data['uname'],
-            'uptime'								: data['uptime'],
-            'outer_nic'							: data['outer_nic'],
-            'open_files'						: data['open_files'],
-            'ips'                                   : data['ips'],
-            'last_installed'        				: data['last_installed'],
-            'open_files_limit'			:	data['open_files_limit'],
-            'number_of_logins'			: data['number_of_logins'],
-            'number_of_processes'		: data['number_of_processes'],
-            'number_of_connections' :	data['number_of_connections'],
-            'connection_list' 			: data['connection_list'],
-            'memtotal'							: data['memtotal'],
-            'membuffers'						:	data['membuffers'],
-            'memfree'								: data['memfree'],
-            'memcached' 						: data['memcached'],
-            'memswaptotal' 					: data['memswaptotal'],
-            'memswapfree' 					: data['memswapfree']
+        'agent_version'			    : data['agent_version'],
+        'cpu_load' 					: data['cpu_load'],
+        'io_load' 					: data['io_load'],
+        'process_list'				: data['process_list'],
+        'received_data' 			: data['received_data'],
+        'transmited_data' 			: data['transmited_data'],
+        'rx_diff' 					: data['rx_diff'],
+        'tx_diff' 					: data['tx_diff'],
+        'cpu_cores' 				: data['cpu_cores'],
+        'cpu_model' 	 			: data['cpu_model'],
+        'cpu_speed'					: data['cpu_speed'],
+        'cpu_thread_data'           : data['cpu_thread_data'],
+        'load_proc'					: data['load'],
+        'disks'						: data['disks'],
+        'all_disks'					: data['all_disks'],
+        'uname'						: data['uname'],
+        'uptime'					: data['uptime'],
+        'outer_nic'					: data['outer_nic'],
+        'open_files'				: data['open_files'],
+        'ips'                       : data['ips'],
+        'last_installed'            : data['last_installed'],
+        'open_files_limit'			: data['open_files_limit'],
+        'number_of_logins'			: data['number_of_logins'],
+        'number_of_processes'		: data['number_of_processes'],
+        'number_of_connections'     : data['number_of_connections'],
+        'connection_list' 			: data['connection_list'],
+        'memtotal'				    : data['memtotal'],
+        'membuffers'				: data['membuffers'],
+        'memfree'					: data['memfree'],
+        'memcached' 				: data['memcached'],
+        'memswaptotal' 				: data['memswaptotal'],
+        'memswapfree' 				: data['memswapfree']
     }
 
     config = ConfigParser.ConfigParser()
@@ -161,8 +196,8 @@ def post_to_api(data):
     api_url = api_url + api_key
 
     req = Request(api_url)
-    req.add_header('Content-Type','application/json')
-    req.add_header('X-Merhaba-From','x-monx-api')
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('X-Merhaba-From', 'x-monx-api')
     try:
         response = urlopen(req,json.dumps(post_data))
         print response.read()
@@ -176,23 +211,23 @@ def post_to_api(data):
 
 check_for_root()
 
-if(len(sys.argv) > 1 and sys.argv[1] == '-u'):
+if len(sys.argv) > 1 and sys.argv[1] == '-u':
     check_update()
 
-data['disks'] = check_disks()
 data['load'] = check_loadavg()
-data['uptime'] = check_uptime() 
+data['uptime'] = check_uptime()
 data['uname'] = platform.uname()
 data['outer_nic'] = check_outer_nic()
 data['agent_version'] = agent_version
+data['process_list'] = check_process_list()
 data['last_installed'] = check_last_installed()
-data['process_list'] = check_process_list() 
+data['disks'], data['all_disks'] = check_disks()
 data['connection_list'] = check_connection_list()
 data['number_of_logins'] = check_number_of_logins()
 data['number_of_processes'] = check_number_of_processes()
-data['number_of_connections'] = check_number_of_connections() 
-data['open_files'] , data['open_files_limit'] = check_file_limits()
-data['cpu_model'] , data['cpu_cores'] , data['cpu_speed'] = check_cpu_info()
+data['number_of_connections'] = check_number_of_connections()
+data['open_files'], data['open_files_limit'] = check_file_limits()
+data['cpu_model'], data['cpu_cores'], data['cpu_speed'], data['cpu_thread_data'] = check_cpu_info()
 data['memtotal'], data['membuffers'], data['memfree'], data['memcached'], data['memswaptotal'], data['memswapfree'] = check_memory()
 
 # TODO
@@ -208,9 +243,9 @@ with open('/proc/stat', 'r') as f:
 general_stats.pop(0)
 general_stats = map(int, general_stats)
 
-current_cpu = general_stats[0] + general_stats[1] + general_stats[2] + general_stats[3]   
-current_io = general_stats[3] + general_stats[4]   
-current_idle = general_stats[3]   
+current_cpu = general_stats[0] + general_stats[1] + general_stats[2] + general_stats[3]
+current_io = general_stats[3] + general_stats[4]
+current_idle = general_stats[3]
 
 
 with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as f:
@@ -243,11 +278,10 @@ if os.path.exists('/opt/data_collector/stats_data'):
     io_diff = current_io - previous_io
     idle_diff = current_idle - previous_idle
 
-    if cpu_diff > 0:
-        data['cpu_load'] = (1000*(cpu_diff - idle_diff)/cpu_diff + 5)/10
+    if cpu_diff > 0: data[ 'cpu_load'] = (1000*(cpu_diff - idle_diff) / cpu_diff + 5)/10
 
     if io_diff > 0:
-        data['io_load'] = (1000*(io_diff - idle_diff)/io_diff + 5)/10
+        data[ 'io_load'] = (1000*(io_diff - idle_diff)/io_diff + 5)/10
 
     if data['received_data'] > previous_rx:
         data['rx_diff'] = data['received_data'] - previous_rx
@@ -260,9 +294,9 @@ else:
     data['rx_diff'] = -1
     data['tx_diff'] = -1
 
-f = open('/opt/data_collector/stats_data','w')
-f.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n") 
-f.close()
+stats_file = open('/opt/data_collector/stats_data', 'w')
+stats_file.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n")
+stats_file.close()
 
 # print data
 if data['cpu_load'] != '-1':
