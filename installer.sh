@@ -42,5 +42,5 @@ echo '* * * * *       /opt/data_collector/data_collector.py > /dev/null 2>&1' >>
 crontab < /tmp/cronlist
 rm -rf /tmp/cronlist
 
-echo "\n Excellent"
+echo "Excellent"
 echo 'Monx Agent installed! You should be able to see the data in the panel in a minute'
