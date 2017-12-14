@@ -14,7 +14,7 @@ from socket import error as SocketError
 from urllib2 import Request, urlopen, URLError, HTTPError
 
 debug = False
-agent_version = '1.0.10'
+agent_version = '1.0.11'
 
 data = {}
 
@@ -35,17 +35,17 @@ def check_last_installed():
     elif os.path.exists('/var/log/YaST2/y2logRPM'):
         return os.path.getmtime('/var/log/YaST2/y2logRPM')
     else:
-        return '-1'
+        return -1
 
 
 def check_uptime():
     with open('/proc/uptime', 'r') as f:
-        return f.readline().rstrip().split()[0]
+        return float(f.readline().rstrip().split()[0])
 
 
 def check_loadavg():
     with open('/proc/loadavg', 'r') as f:
-        return f.readline().rstrip().split()
+        return float(f.readline().rstrip().split()[0])
 
 
 def check_connection_list():
@@ -74,7 +74,7 @@ def check_process_list():
 def check_file_limits():
     with open('/proc/sys/fs/file-nr', 'r') as f:
         o_files = f.readline().rstrip().split()
-        return o_files[0], o_files[2]
+        return int(o_files[0]), int(o_files[2])
 
 
 def check_update():
@@ -108,17 +108,17 @@ def check_memory():
     for memi in meminfo:
         temp = memi.rstrip().split(': ')
         if temp[0] == 'MemTotal':
-            memtotal = temp[1].strip()
+            memtotal = int((temp[1].strip()).replace(" kB", ""))
         if temp[0] == 'MemFree':
-            memfree = temp[1].strip()
+            memfree = int((temp[1].strip()).replace(" kB", ""))
         if temp[0] == 'Buffers':
-            membuffers = temp[1].strip()
+            membuffers = int((temp[1].strip()).replace(" kB", ""))
         if temp[0] == 'Cached':
-            memcached = temp[1].strip()
+            memcached = int((temp[1].strip()).replace(" kB", ""))
         if temp[0] == 'SwapTotal':
-            memswaptotal = temp[1].strip()
+            memswaptotal = int((temp[1].strip()).replace(" kB", ""))
         if temp[0] == 'SwapFree':
-            memswapfree = temp[1].strip()
+            memswapfree = int((temp[1].strip()).replace(" kB", ""))
     return memtotal, membuffers, memfree, memcached, memswaptotal, memswapfree
 
 
@@ -154,38 +154,39 @@ def check_outer_nic():
 
 def post_to_api(data):
     post_data = {
-        'agent_version'			    : data['agent_version'],
-        'cpu_load' 					: data['cpu_load'],
-        'io_load' 					: data['io_load'],
-        'process_list'				: data['process_list'],
-        'received_data' 			: data['received_data'],
-        'transmited_data' 			: data['transmited_data'],
-        'rx_diff' 					: data['rx_diff'],
-        'tx_diff' 					: data['tx_diff'],
-        'cpu_cores' 				: data['cpu_cores'],
-        'cpu_model' 	 			: data['cpu_model'],
-        'cpu_speed'					: data['cpu_speed'],
-        'cpu_thread_data'           : data['cpu_thread_data'],
-        'load_proc'					: data['load'],
+        'uname'						: data['uname'],
+        'number_of_logins'			: data['number_of_logins'],
         'disks'						: data['disks'],
         'all_disks'					: data['all_disks'],
-        'uname'						: data['uname'],
-        'uptime'					: data['uptime'],
+        'cpu_cores' 				: data['cpu_cores'],
+        'cpu_speed'					: data['cpu_speed'],
+        'cpu_model' 	 			: data['cpu_model'],
+        'cpu_thread_data'           : data['cpu_thread_data'],
+        'open_files_limit'			: data['open_files_limit'],
         'outer_nic'					: data['outer_nic'],
-        'open_files'				: data['open_files'],
+        'membuffers'				: data['membuffers'],
+        'agent_version'			    : data['agent_version'],
+
+        'rx_diff' 					: data['rx_diff'],
+        'tx_diff' 					: data['tx_diff'],
         'ips'                       : data['ips'],
         'last_installed'            : data['last_installed'],
-        'open_files_limit'			: data['open_files_limit'],
-        'number_of_logins'			: data['number_of_logins'],
+        'transmitted_data' 			: data['transmitted_data'],
+        'load_proc'					: data['load'],
+        'cpu_load' 					: data['cpu_load'],
+        'open_files'				: data['open_files'],
+        'io_load' 					: data['io_load'],
+        'uptime'					: data['uptime'],
+        'received_data' 			: data['received_data'],
+        'process_list'				: data['process_list'],
         'number_of_processes'		: data['number_of_processes'],
-        'number_of_connections'     : data['number_of_connections'],
         'connection_list' 			: data['connection_list'],
+        'number_of_connections'     : data['number_of_connections'],
         'memtotal'				    : data['memtotal'],
-        'membuffers'				: data['membuffers'],
         'memfree'					: data['memfree'],
-        'memcached' 				: data['memcached'],
         'memswaptotal' 				: data['memswaptotal'],
         'memswapfree' 				: data['memswapfree']
+        'memcached' 				: data['memcached'],
     }
 
     config = ConfigParser.ConfigParser()
@@ -252,9 +253,9 @@ with open('/sys/class/net/'+ data['outer_nic'] + '/statistics/rx_bytes', 'r') as
     data['received_data'] = int(f.readline().rstrip())
 
 with open('/sys/class/net/' + data['outer_nic'] + '/statistics/tx_bytes', 'r') as f:
-    data['transmited_data'] = int(f.readline().rstrip())
+    data['transmitted_data'] = int(f.readline().rstrip())
 
-# TODO: /sbin/ip addr show br0 | grep inet | awk '{print $2}' 
+# TODO: /sbin/ip addr show br0 | grep inet | awk '{print $2}'
 f = os.popen('/sbin/ip addr | grep inet | awk \'{print $2}\'')
 data['ips'] = f.read()
 f.close()
@@ -286,8 +287,8 @@ if os.path.exists('/opt/data_collector/stats_data'):
     if data['received_data'] > previous_rx:
         data['rx_diff'] = data['received_data'] - previous_rx
 
-    if data['transmited_data'] > previous_tx:
-        data['tx_diff'] = data['transmited_data'] - previous_tx
+    if data['transmitted_data'] > previous_tx:
+        data['tx_diff'] = data['transmitted_data'] - previous_tx
 else:
     data['cpu_load'] = -1
     data['io_load'] = -1
@@ -295,7 +296,7 @@ else:
     data['tx_diff'] = -1
 
 stats_file = open('/opt/data_collector/stats_data', 'w')
-stats_file.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmited_data']) + "\n")
+stats_file.write(str(timenow) + ' ' + str(current_cpu) + ' ' + str(current_io) + ' ' + str(current_idle) + ' ' + str(data['received_data']) + ' ' + str(data['transmitted_data']) + "\n")
 stats_file.close()
 
 # print data
