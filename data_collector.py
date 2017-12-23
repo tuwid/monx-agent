@@ -185,16 +185,14 @@ def post_to_api(data):
         'memtotal'				    : data['memtotal'],
         'memfree'					: data['memfree'],
         'memswaptotal' 				: data['memswaptotal'],
-        'memswapfree' 				: data['memswapfree']
+        'memswapfree' 				: data['memswapfree'],
         'memcached' 				: data['memcached'],
     }
 
     config = ConfigParser.ConfigParser()
     config.read('/opt/data_collector/default.conf')
 
-    api_key = config.get('settings', 'API_KEY' )
     api_url = config.get('settings', 'API_URL' )
-    api_url = api_url + api_key
 
     req = Request(api_url)
     req.add_header('Content-Type', 'application/json')
