@@ -19,7 +19,7 @@ mkdir -p /opt/data_collector/
 cat >/opt/data_collector/default.conf <<EOF
 [settings]
 api_key = $MONX_API_KEY
-api_url = https://monx.me/api/v1/store-data/
+api_url = http://api.monx.me/api/servers/$MONX_API_KEY/statistics
 
 EOF
 
@@ -42,5 +42,5 @@ echo '* * * * *       /opt/data_collector/data_collector.py > /dev/null 2>&1' >>
 crontab < /tmp/cronlist
 rm -rf /tmp/cronlist
 
-echo "Excellent"
+echo 'Excellent'
 echo 'Monx Agent installed! You should be able to see the data in the panel in a minute'
