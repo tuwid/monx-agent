@@ -1,69 +1,168 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
-	"time"
 )
 
+// TODO:
+// - Add system logging support
+// - Get command exit code
+// - Post output to API
+// - Add debug env variable flag
+
+type JSONResponse struct {
+	Commands []string `json:"commands"`
+}
+
+type agent struct {
+	mac      string
+	apikey   string
+	apiuri   string
+	execpath string
+	debug    bool
+	os       string
+	command
+}
+type command struct {
+	execstring  string
+	exitcode    int
+	interpreter string
+	output      string
+}
+
+func (pvm *agent) print() {
+	fmt.Println("Agent MAC: ", pvm.mac)
+	fmt.Println("Agent KEY: ", pvm.apikey)
+	fmt.Println("Agent URI: ", pvm.apiuri)
+	fmt.Println("Agent OS: ", pvm.os)
+	fmt.Println("Agent PATH: ", pvm.execpath)
+}
+
+func (pvm *agent) setMacAddr() {
+	interfaces, err := net.Interfaces()
+	addr := "aa:bb:cc:dd:ee:ff"
+	if err == nil {
+		for _, i := range interfaces {
+			if i.Flags&net.FlagUp != 0 && bytes.Compare(i.HardwareAddr, nil) != 0 {
+				addr = i.HardwareAddr.String()
+				break
+			}
+		}
+	}
+	r := strings.NewReplacer(":", "-")
+	pvm.mac = r.Replace(addr)
+}
+
+func (pvm *agent) setEnv(key string) {
+	pvm.os = runtime.GOOS
+	if os.Getenv("AGENT_DEBUG") == "1" {
+		fmt.Println("Turning ON debug logs")
+		pvm.debug = true
+	}
+	pvm.apikey = key
+	pvm.apiuri = "https://api.monx.me/api/hub/agent/command?apikey=" + pvm.apikey + "&mac=" + pvm.mac
+	if pvm.os == "windows" {
+		pvm.execpath = filepath.Join(os.Getenv("TEMP"), "_monxagent.bat")
+	} else {
+		pvm.execpath = filepath.Join(os.Getenv("HOME"), "_monxagent.sh")
+	}
+}
+
+func (pvm *agent) getDataFromBase() {
+	resp, err := http.Get(pvm.apiuri)
+	if pvm.debug {
+		fmt.Println("Got code :", resp.StatusCode, " from API")
+	}
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if pvm.debug {
+		fmt.Println("Response body: ", string(body))
+	}
+	if err != nil {
+		fmt.Println(err)
+		return
+	} else if body == nil {
+		fmt.Println("Wrong body response.")
+		return
+	}
+
+	var jsonObject JSONResponse
+	err = json.Unmarshal(body, &jsonObject)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if len(jsonObject.Commands) == 0 {
+		if pvm.debug {
+			fmt.Println("List of commands empty, returning")
+		}
+		return
+	}
+	os.Remove(pvm.execpath)
+	if len(jsonObject.Commands) > 1 {
+		// old version with multiple commands
+		if pvm.debug {
+			fmt.Println("Got multiple commands, aggregating in one ")
+		}
+		pvm.command.execstring = strings.Join(jsonObject.Commands, "\n")
+	}
+}
+
+func (pvm *agent) finaliseCommand() {
+
+	ferr := ioutil.WriteFile(pvm.execpath, []byte(pvm.command.execstring), 0644)
+	if ferr != nil {
+		fmt.Println(ferr)
+		os.Exit(1)
+	}
+	var out []byte
+	var cerr error
+	if pvm.os == "windows" {
+		out, cerr = exec.Command("cmd", "/C", pvm.execpath).Output() // windows
+	} else {
+		out, cerr = exec.Command("bash", pvm.execpath).Output() // unix based
+	}
+	if cerr != nil {
+		fmt.Println(cerr)
+	}
+
+	if pvm.debug {
+		fmt.Println("Command output: ", string(out))
+	}
+	os.Remove(pvm.execpath)
+}
+
 func main() {
+	var vm agent
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("Usage: agent [apiKey]")
 		return
 	}
-	apiKEY := args[0]
-	apiURI := strings.Join([]string{"https://demo9829362.mockable.io/api?apiKey=", apiKEY}, "")
-	ticker := time.NewTicker(2 * time.Second)
-	for {
-		<-ticker.C
-		go interval(apiURI)
-	}
-}
 
-// Representing a json response
-type JSONResponse struct {
-	Commands []string `json:"commands"`
-}
-
-func interval(apiURI string) {
-	// commands http request
-	resp, err := http.Get(apiURI) // https://monx.me/
-	if err != nil {
-		fmt.Println(err) // TODO: on step 2: log errors
-		return
+	vm.setMacAddr()
+	vm.setEnv(args[0])
+	if vm.debug {
+		vm.print()
 	}
-	defer resp.Body.Close()
-	// get response
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err) // TODO: on step 2: log errors
-		return
-	} else if body == nil {
-		fmt.Println("Wrong body response.") // TODO: on step 2: log errors
-		return
-	}
-	// json decode
-	var jsonObject JSONResponse
-	err = json.Unmarshal(body, &jsonObject)
-	if err != nil {
-		fmt.Println(err)
-	}
-	var commands = jsonObject.Commands
-	if len(commands) == 0 {
-		return // there are no commands
-	}
-	for _, command := range commands {
-		// out, err := exec.Command("cmd", "/C", command).Output() // windows
-		out, err := exec.Command("bash", "-c", command).Output() // unix
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println(string(out))
-	}
+	fmt.Println("Initializing agent using mac :", vm.mac)
+	vm.getDataFromBase()
+	vm.finaliseCommand()
+	// vm.finaliseExec()
 }
