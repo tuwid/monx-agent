@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +42,18 @@ type command struct {
 	output      string
 }
 
+func orFail(err error, msg string) {
+	if err != nil {
+		log.Fatalf("%s: %s", msg, err)
+		panic(fmt.Sprintf("%s: %s", msg, err))
+	}
+}
+
+func vmDebug(debug bool, msg string) {
+	if debug {
+		fmt.Println(msg)
+	}
+}
 func (pvm *agent) print() {
 	fmt.Println("Agent MAC: ", pvm.mac)
 	fmt.Println("Agent KEY: ", pvm.apikey)
@@ -80,77 +94,62 @@ func (pvm *agent) setEnv(key string) {
 
 func (pvm *agent) getDataFromBase() {
 	resp, err := http.Get(pvm.apiuri)
-	if pvm.debug {
-		fmt.Println("Got code :", resp.StatusCode, " from API")
-	}
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
 
+	vmDebug(pvm.debug, "Got code "+strconv.Itoa(resp.StatusCode)+" from API")
+	orFail(err, "Error while GETing from the API")
+
+	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	if pvm.debug {
-		fmt.Println("Response body: ", string(body))
-	}
-	if err != nil {
-		fmt.Println(err)
-		return
-	} else if body == nil {
+
+	vmDebug(pvm.debug, "Response body: "+string(body))
+	orFail(err, "Error decoding the body from the API")
+
+	if body == nil {
 		fmt.Println("Wrong body response.")
 		return
 	}
 
 	var jsonObject JSONResponse
 	err = json.Unmarshal(body, &jsonObject)
-	if err != nil {
-		fmt.Println(err)
+	orFail(err, "Error decoding the JSON")
+
+	if len(jsonObject.Commands) == 0 {
+		vmDebug(pvm.debug, "List of commands empty, returning")
 		return
 	}
 
-	if len(jsonObject.Commands) == 0 {
-		if pvm.debug {
-			fmt.Println("List of commands empty, returning")
-		}
-		return
-	}
 	os.Remove(pvm.execpath)
 	if len(jsonObject.Commands) > 1 {
 		// old version with multiple commands
-		if pvm.debug {
-			fmt.Println("Got multiple commands, aggregating in one ")
-		}
+		vmDebug(pvm.debug, "Got multiple commands, aggregating in one ")
 		pvm.command.execstring = strings.Join(jsonObject.Commands, "\n")
 	}
 }
 
 func (pvm *agent) finaliseCommand() {
-
 	ferr := ioutil.WriteFile(pvm.execpath, []byte(pvm.command.execstring), 0644)
+	var out []byte
+	var cerr error
+
 	if ferr != nil {
 		fmt.Println(ferr)
 		os.Exit(1)
 	}
-	var out []byte
-	var cerr error
 	if pvm.os == "windows" {
 		out, cerr = exec.Command("cmd", "/C", pvm.execpath).Output() // windows
 	} else {
 		out, cerr = exec.Command("bash", pvm.execpath).Output() // unix based
 	}
-	if cerr != nil {
-		fmt.Println(cerr)
-	}
 
-	if pvm.debug {
-		fmt.Println("Command output: ", string(out))
-	}
+	orFail(cerr, "Error from the command")
+	vmDebug(pvm.debug, "Command output: "+string(out))
 	os.Remove(pvm.execpath)
 }
 
 func main() {
 	var vm agent
 	args := os.Args[1:]
+
 	if len(args) == 0 {
 		fmt.Println("Usage: agent [apiKey]")
 		return
@@ -161,8 +160,8 @@ func main() {
 	if vm.debug {
 		vm.print()
 	}
+
 	fmt.Println("Initializing agent using mac :", vm.mac)
 	vm.getDataFromBase()
 	vm.finaliseCommand()
-	// vm.finaliseExec()
 }
