@@ -22,6 +22,7 @@ import (
 // - Get command exit code
 // - Post output to API
 // - Add debug env variable flag
+// - Add selfupdate
 
 type JSONResponse struct {
 	Commands []string `json:"commands"`
@@ -97,22 +98,26 @@ func (pvm *agent) setMacAddr() {
 }
 
 func (pvm *agent) selfUpdate() {
+	vmDebug(pvm.debug, "Starting slef update subrutine")
 	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
 	orFail(err, "Error while reading path")
-	fmt.Println(dir)
+	vmDebug(pvm.debug, "Getting last agent build")
 	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-latest"
-	updatedFile := dir + pvm.separator + "agent_update.exe"
-
+	updatedFile := dir + pvm.separator + "agent_update"
 	error := getUpdateFromURL(updatedFile, fileUrl)
 	orFail(error, "Error while getUpdateFromURL")
-
 	os.Rename(pvm.agentpath, pvm.agentpath+pvm.separator+".bck")
-	os.Rename(updatedFile, pvm.agentpath)
+	if pvm.os == "windows" {
+		os.Rename(updatedFile, pvm.agentpath+".exe")
+	} else {
+		os.Rename(updatedFile, pvm.agentpath)
+		os.Chmod(pvm.agentpath, 0755)
+	}
 }
 
 func (pvm *agent) setEnv(key []string) {
 	pvm.os = runtime.GOOS
-	pvm.version = "1.0.0"
+	pvm.version = "1.0.1"
 	if os.Getenv("AGENT_DEBUG") == "1" {
 		fmt.Println("Turning ON debug logs")
 		pvm.debug = true
@@ -158,30 +163,35 @@ func (pvm *agent) getDataFromBase() {
 
 	os.Remove(pvm.execpath)
 	if len(jsonObject.Commands) > 1 {
-		// old version with multiple commands
-		vmDebug(pvm.debug, "Got multiple commands, aggregating in one ")
-		pvm.command.execstring = strings.Join(jsonObject.Commands, "\n")
+		vmDebug(pvm.debug, "Got multiple commands, will aggregate")
 	}
+	pvm.command.execstring = strings.Join(jsonObject.Commands, "\n")
 }
 
 func (pvm *agent) finaliseCommand() {
-	ferr := ioutil.WriteFile(pvm.execpath, []byte(pvm.command.execstring), 0644)
-	var out []byte
-	var cerr error
-
-	if ferr != nil {
-		fmt.Println(ferr)
-		os.Exit(1)
-	}
-	if pvm.os == "windows" {
-		out, cerr = exec.Command("cmd", "/C", pvm.execpath).Output() // windows
+	fmt.Println(pvm.command.execstring)
+	if pvm.command.execstring == "_autoUpdate" {
+		vmDebug(pvm.debug, "Starting slef update")
+		pvm.selfUpdate()
 	} else {
-		out, cerr = exec.Command("bash", pvm.execpath).Output() // unix based
-	}
+		ferr := ioutil.WriteFile(pvm.execpath, []byte(pvm.command.execstring), 0644)
+		var out []byte
+		var cerr error
 
-	orFail(cerr, "Error from the command")
-	vmDebug(pvm.debug, "Command output: "+string(out))
-	os.Remove(pvm.execpath)
+		if ferr != nil {
+			fmt.Println(ferr)
+			os.Exit(1)
+		}
+		if pvm.os == "windows" {
+			out, cerr = exec.Command("cmd", "/C", pvm.execpath).Output() // windows
+		} else {
+			out, cerr = exec.Command("bash", pvm.execpath).Output() // unix based
+		}
+
+		orFail(cerr, "Error from the command")
+		vmDebug(pvm.debug, "Command output: "+string(out))
+		os.Remove(pvm.execpath)
+	}
 }
 
 func main() {
