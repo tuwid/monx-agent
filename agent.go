@@ -100,7 +100,7 @@ func (pvm *agent) selfUpdate() {
 	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
 	orFail(err, "Error while reading path")
 	fmt.Println(dir)
-	fileUrl := "https://golangcode.com/images/avatar.jpg"
+	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-latest"
 	updatedFile := dir + pvm.separator + "agent_update.exe"
 
 	error := getUpdateFromURL(updatedFile, fileUrl)
