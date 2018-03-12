@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -27,14 +28,18 @@ type JSONResponse struct {
 }
 
 type agent struct {
-	mac      string
-	apikey   string
-	apiuri   string
-	execpath string
-	debug    bool
-	os       string
+	mac       string
+	apikey    string
+	version   string
+	apiuri    string
+	agentpath string
+	execpath  string
+	separator string
+	debug     bool
+	os        string
 	command
 }
+
 type command struct {
 	execstring  string
 	exitcode    int
@@ -54,12 +59,26 @@ func vmDebug(debug bool, msg string) {
 		fmt.Println(msg)
 	}
 }
+
+func getUpdateFromURL(filepath string, url string) error {
+	out, err := os.Create(filepath)
+	orFail(err, "Error creating a temp path for agent update")
+	defer out.Close()
+	resp, err := http.Get(url)
+	orFail(err, "Error while GETing agent update from GITHUB")
+	defer resp.Body.Close()
+	_, err = io.Copy(out, resp.Body)
+	orFail(err, "Error while writing agent update to file")
+	return nil
+}
+
 func (pvm *agent) print() {
+	fmt.Println("Agent VER: ", pvm.version)
 	fmt.Println("Agent MAC: ", pvm.mac)
 	fmt.Println("Agent KEY: ", pvm.apikey)
 	fmt.Println("Agent URI: ", pvm.apiuri)
 	fmt.Println("Agent OS: ", pvm.os)
-	fmt.Println("Agent PATH: ", pvm.execpath)
+	fmt.Println("Agent TMP_PATH: ", pvm.execpath)
 }
 
 func (pvm *agent) setMacAddr() {
@@ -77,17 +96,36 @@ func (pvm *agent) setMacAddr() {
 	pvm.mac = r.Replace(addr)
 }
 
-func (pvm *agent) setEnv(key string) {
+func (pvm *agent) selfUpdate() {
+	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
+	orFail(err, "Error while reading path")
+	fmt.Println(dir)
+	fileUrl := "https://golangcode.com/images/avatar.jpg"
+	updatedFile := dir + pvm.separator + "agent_update.exe"
+
+	error := getUpdateFromURL(updatedFile, fileUrl)
+	orFail(error, "Error while getUpdateFromURL")
+
+	os.Rename(pvm.agentpath, pvm.agentpath+pvm.separator+".bck")
+	os.Rename(updatedFile, pvm.agentpath)
+}
+
+func (pvm *agent) setEnv(key []string) {
 	pvm.os = runtime.GOOS
+	pvm.version = "1.0.0"
 	if os.Getenv("AGENT_DEBUG") == "1" {
 		fmt.Println("Turning ON debug logs")
 		pvm.debug = true
 	}
-	pvm.apikey = key
+
+	pvm.agentpath = key[0]
+	pvm.apikey = key[1]
 	pvm.apiuri = "https://api.monx.me/api/hub/agent/command?apikey=" + pvm.apikey + "&mac=" + pvm.mac
 	if pvm.os == "windows" {
+		pvm.separator = "\\"
 		pvm.execpath = filepath.Join(os.Getenv("TEMP"), "_monxagent.bat")
 	} else {
+		pvm.separator = "/"
 		pvm.execpath = filepath.Join(os.Getenv("HOME"), "_monxagent.sh")
 	}
 }
@@ -148,7 +186,7 @@ func (pvm *agent) finaliseCommand() {
 
 func main() {
 	var vm agent
-	args := os.Args[1:]
+	args := os.Args
 
 	if len(args) == 0 {
 		fmt.Println("Usage: agent [apiKey]")
@@ -156,7 +194,7 @@ func main() {
 	}
 
 	vm.setMacAddr()
-	vm.setEnv(args[0])
+	vm.setEnv(args)
 	if vm.debug {
 		vm.print()
 	}

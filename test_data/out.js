@@ -1,1 +1,0 @@
-db.getCollection('server_data').find( {}, { cpu_load: 1, updated_at: 1,_id:0 } )
