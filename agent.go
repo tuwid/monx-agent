@@ -80,6 +80,7 @@ func (pvm *agent) print() {
 	fmt.Println("Agent URI: ", pvm.apiuri)
 	fmt.Println("Agent OS: ", pvm.os)
 	fmt.Println("Agent TMP_PATH: ", pvm.execpath)
+	fmt.Println("Agent RUN_PATH: ", pvm.agentpath)
 }
 
 func (pvm *agent) setMacAddr() {
@@ -106,11 +107,9 @@ func (pvm *agent) selfUpdate() {
 	updatedFile := dir + pvm.separator + "agent_update"
 	error := getUpdateFromURL(updatedFile, fileUrl)
 	orFail(error, "Error while getUpdateFromURL")
-	os.Rename(pvm.agentpath, pvm.agentpath+pvm.separator+".bck")
-	if pvm.os == "windows" {
-		os.Rename(updatedFile, pvm.agentpath+".exe")
-	} else {
-		os.Rename(updatedFile, pvm.agentpath)
+	os.Rename(pvm.agentpath, pvm.agentpath+".bck")
+	os.Rename(updatedFile, pvm.agentpath)
+	if pvm.os != "windows" {
 		os.Chmod(pvm.agentpath, 0755)
 	}
 }
