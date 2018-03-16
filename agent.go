@@ -128,7 +128,7 @@ func (pvm *agent) setEnv(key []string) {
 	if pvm.os == "windows" {
 		pvm.separator = "\\"
 		// pvm.execpath = filepath.Join(os.Getenv("TEMP"), "_monxagent.bat")
-		pvm.execpath = filepath.Join("C:\\Windows\\Temp\\", "_monxagent.bat")
+		pvm.execpath = filepath.Join("C:\\_monxagent.bat")
 	} else {
 		pvm.separator = "/"
 		pvm.execpath = filepath.Join(os.Getenv("HOME"), "_monxagent.sh")
