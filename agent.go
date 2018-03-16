@@ -116,7 +116,7 @@ func (pvm *agent) selfUpdate() {
 
 func (pvm *agent) setEnv(key []string) {
 	pvm.os = runtime.GOOS
-	pvm.version = "1.0.1"
+	pvm.version = "1.1.1"
 	if os.Getenv("AGENT_DEBUG") == "1" {
 		fmt.Println("Turning ON debug logs")
 		pvm.debug = true
