@@ -198,7 +198,7 @@ func main() {
 	var vm agent
 	args := os.Args
 
-	if len(args) == 0 {
+	if len(args[1:]) == 0 {
 		fmt.Println("Usage: agent [apiKey]")
 		return
 	}
