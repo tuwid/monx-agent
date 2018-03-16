@@ -127,7 +127,8 @@ func (pvm *agent) setEnv(key []string) {
 	pvm.apiuri = "https://api.monx.me/api/hub/agent/command?apikey=" + pvm.apikey + "&mac=" + pvm.mac
 	if pvm.os == "windows" {
 		pvm.separator = "\\"
-		pvm.execpath = filepath.Join(os.Getenv("TEMP"), "_monxagent.bat")
+		// pvm.execpath = filepath.Join(os.Getenv("TEMP"), "_monxagent.bat")
+		pvm.execpath = filepath.Join("C:\\Windows\\Temp\\", "_monxagent.bat")
 	} else {
 		pvm.separator = "/"
 		pvm.execpath = filepath.Join(os.Getenv("HOME"), "_monxagent.sh")
