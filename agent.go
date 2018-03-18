@@ -103,7 +103,10 @@ func (pvm *agent) selfUpdate() {
 	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
 	orFail(err, "Error while reading path")
 	vmDebug(pvm.debug, "Getting last agent build")
-	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-latest"
+	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-" + pvm.os
+	if pvm.os == "windows" {
+		fileUrl += ".exe"
+	}
 	updatedFile := dir + pvm.separator + "agent_update"
 	error := getUpdateFromURL(updatedFile, fileUrl)
 	orFail(error, "Error while getUpdateFromURL")
