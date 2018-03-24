@@ -141,7 +141,6 @@ func (pvm *agent) selfInstall() {
 		orFail(err, "Error while reading from agent binary")
 		_, ierr := exec.Command("sc", params).Output()
 		orFail(ierr, "Could not install")
-
 	}
 
 }
@@ -275,6 +274,11 @@ func main() {
 		vm.print()
 	}
 
+	if len(args[1:]) == 2 && args[2] == "--install" {
+		fmt.Println("About to install")
+		vm.selfInstall()
+		return
+	}
 	fmt.Println("Initializing agent using mac :", vm.mac)
 	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
 	for true {
