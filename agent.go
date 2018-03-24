@@ -17,12 +17,58 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kardianos/service"
 )
 
 // TODO:
 // - Add system logging support
 // - Get command exit code
 // - Post output to API
+
+var logger service.Logger
+
+type program struct{}
+
+func (p *program) Start(s service.Service) error {
+	// Start should not block. Do the actual work async.
+	go p.run()
+	return nil
+}
+func (p *program) run() {
+	var vm agent
+	args := os.Args
+
+	// if len(args[1:]) == 0 {
+	// 	fmt.Println("Usage: agent [apiKey]")
+	// 	fmt.Println("For install: agent [apiKey] --install")
+	// 	return
+	// }
+
+	vm.setMacAddr()
+	vm.setEnv(args)
+	if vm.debug {
+		vm.print()
+	}
+
+	fmt.Println("Initializing agent using mac :", vm.mac)
+	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
+
+	for true {
+		if !vm.blocked {
+			vm.block()
+			if vm.getDataFromBase() {
+				vm.finaliseCommand()
+			}
+			vm.unBlock()
+		}
+		vm.waitRandomly()
+	}
+}
+func (p *program) Stop(s service.Service) error {
+	// Stop should not block. Return with a few seconds.
+	return nil
+}
 
 type JSONResponse struct {
 	Commands []string `json:"commands"`
@@ -121,6 +167,27 @@ func (pvm *agent) setMacAddr() {
 	pvm.mac = r.Replace(addr)
 }
 
+func (pvm *agent) selfUpdate() {
+	vmDebug(pvm.debug, "Starting slef update subrutine")
+	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
+	orFail(err, "Error while reading path")
+	vmDebug(pvm.debug, "Getting last agent build")
+
+	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-" + pvm.os
+	if pvm.os == "windows" {
+		fileUrl += ".exe"
+	}
+	updatedFile := dir + pvm.separator + "agent_update"
+	error := getUpdateFromURL(updatedFile, fileUrl)
+	orFail(error, "Error while getUpdateFromURL")
+
+	os.Rename(pvm.agentpath, pvm.agentpath+".bck")
+	os.Rename(updatedFile, pvm.agentpath)
+	if pvm.os != "windows" {
+		os.Chmod(pvm.agentpath, 0755)
+	}
+}
+
 func (pvm *agent) selfInstall() {
 	if !checkForAdmin() {
 		fmt.Println("Please execute with administrative priviledges!")
@@ -141,28 +208,6 @@ func (pvm *agent) selfInstall() {
 		orFail(err, "Error while reading from agent binary")
 		_, ierr := exec.Command("sc", params).Output()
 		orFail(ierr, "Could not install")
-	}
-
-}
-
-func (pvm *agent) selfUpdate() {
-	vmDebug(pvm.debug, "Starting slef update subrutine")
-	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
-	orFail(err, "Error while reading path")
-	vmDebug(pvm.debug, "Getting last agent build")
-
-	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-" + pvm.os
-	if pvm.os == "windows" {
-		fileUrl += ".exe"
-	}
-	updatedFile := dir + pvm.separator + "agent_update"
-	error := getUpdateFromURL(updatedFile, fileUrl)
-	orFail(error, "Error while getUpdateFromURL")
-
-	os.Rename(pvm.agentpath, pvm.agentpath+".bck")
-	os.Rename(updatedFile, pvm.agentpath)
-	if pvm.os != "windows" {
-		os.Chmod(pvm.agentpath, 0755)
 	}
 }
 
@@ -259,59 +304,54 @@ func (pvm *agent) finaliseCommand() {
 }
 
 func main() {
-	var vm agent
-	args := os.Args
+	if runtime.GOOS == "windows" {
+		svcConfig := &service.Config{
+			Name:        "GoServiceExampleSimple",
+			DisplayName: "Go Service Example",
+			Description: "This is an example Go service.",
+		}
 
-	if len(args[1:]) == 0 {
-		fmt.Println("Usage: agent [apiKey]")
-		fmt.Println("For install: agent [apiKey] --install")
-		return
+		prg := &program{}
+		s, err := service.New(prg, svcConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		logger, err = s.Logger(nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = s.Run()
+		if err != nil {
+			logger.Error(err)
+		}
+	} else {
+		var vm agent
+		args := os.Args
+
+		if len(args[1:]) == 0 {
+			fmt.Println("Usage: agent [apiKey]")
+			fmt.Println("For install: agent [apiKey] --install")
+			return
+		}
+
+		vm.setMacAddr()
+		vm.setEnv(args)
+		if vm.debug {
+			vm.print()
+		}
+
+		fmt.Println("Initializing agent using mac :", vm.mac)
+		//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
+
+		for true {
+			if !vm.blocked {
+				vm.block()
+				if vm.getDataFromBase() {
+					vm.finaliseCommand()
+				}
+				vm.unBlock()
+			}
+			vm.waitRandomly()
+		}
 	}
-
-	vm.setMacAddr()
-	vm.setEnv(args)
-	if vm.debug {
-		vm.print()
-	}
-
-	if len(args[1:]) == 2 && args[2] == "--install" {
-		fmt.Println("About to install")
-		vm.selfInstall()
-		return
-	}
-	fmt.Println("Initializing agent using mac :", vm.mac)
-	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
-
-	if vm.getDataFromBase() {
-		vm.finaliseCommand()
-	}
-
-	// THIS IS TO HAVE THE SERVICE RUNNING CONSTANTLY
-	// for true {
-	// 	if !vm.blocked {
-	// 		vm.block()
-	// 		if vm.getDataFromBase() {
-	// 			vm.finaliseCommand()
-	// 		}
-	// 		vm.unBlock()
-	// 	}
-	// 	vm.waitRandomly()
-	// }
-
-	// Ticker implementation:
-	// t := time.Tick(2000 * time.Millisecond)
-	// for {
-	// 	select {
-	// 	case <-t:
-	// 		if !vm.blocked {
-	// 			vm.block()
-	// 			if vm.getDataFromBase() {
-	// 				vm.finaliseCommand()
-	// 			}
-	// 			vm.unBlock()
-	// 		} else {
-	// 			fmt.Println("Execution pending due to block")
-	// 		}
-	// 	}
-	// }
 }
