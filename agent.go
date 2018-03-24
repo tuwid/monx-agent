@@ -80,9 +80,11 @@ func getUpdateFromURL(filepath string, url string) error {
 	out, err := os.Create(filepath)
 	orFail(err, "Error creating a temp path for agent update")
 	defer out.Close()
+
 	resp, err := http.Get(url)
 	orFail(err, "Error while GETing agent update from GITHUB")
 	defer resp.Body.Close()
+
 	_, err = io.Copy(out, resp.Body)
 	orFail(err, "Error while writing agent update to file")
 	return nil
@@ -149,6 +151,7 @@ func (pvm *agent) selfUpdate() {
 	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
 	orFail(err, "Error while reading path")
 	vmDebug(pvm.debug, "Getting last agent build")
+
 	fileUrl := "https://github.com/tuwid/monx-agent/raw/master/builds/agent-" + pvm.os
 	if pvm.os == "windows" {
 		fileUrl += ".exe"
@@ -156,6 +159,7 @@ func (pvm *agent) selfUpdate() {
 	updatedFile := dir + pvm.separator + "agent_update"
 	error := getUpdateFromURL(updatedFile, fileUrl)
 	orFail(error, "Error while getUpdateFromURL")
+
 	os.Rename(pvm.agentpath, pvm.agentpath+".bck")
 	os.Rename(updatedFile, pvm.agentpath)
 	if pvm.os != "windows" {
