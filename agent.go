@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -15,14 +16,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // TODO:
 // - Add system logging support
 // - Get command exit code
 // - Post output to API
-// - Add debug env variable flag
-// - Add selfupdate
 
 type JSONResponse struct {
 	Commands []string `json:"commands"`
@@ -36,6 +36,7 @@ type agent struct {
 	agentpath string
 	execpath  string
 	separator string
+	blocked   bool
 	debug     bool
 	os        string
 	command
@@ -61,6 +62,20 @@ func vmDebug(debug bool, msg string) {
 	}
 }
 
+func checkForAdmin() bool {
+	if runtime.GOOS == "windows" {
+		_, err := os.Open("\\\\.\\PHYSICALDRIVE0")
+		if err != nil {
+			return false
+		}
+	} else {
+		if os.Geteuid() != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func getUpdateFromURL(filepath string, url string) error {
 	out, err := os.Create(filepath)
 	orFail(err, "Error creating a temp path for agent update")
@@ -71,6 +86,12 @@ func getUpdateFromURL(filepath string, url string) error {
 	_, err = io.Copy(out, resp.Body)
 	orFail(err, "Error while writing agent update to file")
 	return nil
+}
+
+func (pvm *agent) waitRandomly() {
+	rand.Seed(time.Now().Unix())
+	r := rand.Intn(10) + 20
+	time.Sleep(time.Duration(r) * time.Second)
 }
 
 func (pvm *agent) print() {
@@ -98,6 +119,31 @@ func (pvm *agent) setMacAddr() {
 	pvm.mac = r.Replace(addr)
 }
 
+func (pvm *agent) selfInstall() {
+	if !checkForAdmin() {
+		fmt.Println("Please execute with administrative priviledges!")
+		os.Exit(5)
+	}
+	if pvm.os == "windows" {
+		params := "create monxagent binPath= \"C:\\monx\\agent.exe 5a3562da41fd1258a74544b6 \"  DisplayName= \"Monx Agent\" start= auto"
+		os.Mkdir("C:\\monx\\", 0777)
+		sa, err := os.Open(pvm.agentpath)
+		orFail(err, "Error while reading from agent binary")
+		defer sa.Close()
+
+		da, err := os.OpenFile("C:\\monx\\agent.exe", os.O_RDWR|os.O_CREATE, 0755)
+		orFail(err, "Error while writing new agent binary")
+		defer da.Close()
+
+		_, err = io.Copy(da, sa)
+		orFail(err, "Error while reading from agent binary")
+		_, ierr := exec.Command("sc", params).Output()
+		orFail(ierr, "Could not install")
+
+	}
+
+}
+
 func (pvm *agent) selfUpdate() {
 	vmDebug(pvm.debug, "Starting slef update subrutine")
 	dir, err := filepath.Abs(filepath.Dir(pvm.agentpath))
@@ -117,8 +163,18 @@ func (pvm *agent) selfUpdate() {
 	}
 }
 
+func (pvm *agent) block() {
+	pvm.blocked = true
+	vmDebug(pvm.debug, "Blocking executions")
+}
+func (pvm *agent) unBlock() {
+	pvm.blocked = false
+	vmDebug(pvm.debug, "Unblocking executions")
+}
+
 func (pvm *agent) setEnv(key []string) {
 	pvm.os = runtime.GOOS
+	pvm.blocked = false
 	pvm.version = "1.1.1"
 	if os.Getenv("AGENT_DEBUG") == "1" {
 		fmt.Println("Turning ON debug logs")
@@ -138,7 +194,7 @@ func (pvm *agent) setEnv(key []string) {
 	}
 }
 
-func (pvm *agent) getDataFromBase() {
+func (pvm *agent) getDataFromBase() bool {
 	resp, err := http.Get(pvm.apiuri)
 
 	vmDebug(pvm.debug, "Got code "+strconv.Itoa(resp.StatusCode)+" from API")
@@ -152,7 +208,7 @@ func (pvm *agent) getDataFromBase() {
 
 	if body == nil {
 		fmt.Println("Wrong body response.")
-		return
+		return false
 	}
 
 	var jsonObject JSONResponse
@@ -161,7 +217,7 @@ func (pvm *agent) getDataFromBase() {
 
 	if len(jsonObject.Commands) == 0 {
 		vmDebug(pvm.debug, "List of commands empty, returning")
-		return
+		return false
 	}
 
 	os.Remove(pvm.execpath)
@@ -169,6 +225,7 @@ func (pvm *agent) getDataFromBase() {
 		vmDebug(pvm.debug, "Got multiple commands, will aggregate")
 	}
 	pvm.command.execstring = strings.Join(jsonObject.Commands, "\n")
+	return true
 }
 
 func (pvm *agent) finaliseCommand() {
@@ -191,8 +248,9 @@ func (pvm *agent) finaliseCommand() {
 			out, cerr = exec.Command("bash", pvm.execpath).Output() // unix based
 		}
 
-		orFail(cerr, "Error from the command")
-		vmDebug(pvm.debug, "Command output: "+string(out))
+		if cerr != nil {
+			vmDebug(pvm.debug, "Command output: "+string(out))
+		}
 		os.Remove(pvm.execpath)
 	}
 }
@@ -203,6 +261,7 @@ func main() {
 
 	if len(args[1:]) == 0 {
 		fmt.Println("Usage: agent [apiKey]")
+		fmt.Println("For install: agent [apiKey] --install")
 		return
 	}
 
@@ -213,6 +272,31 @@ func main() {
 	}
 
 	fmt.Println("Initializing agent using mac :", vm.mac)
-	vm.getDataFromBase()
-	vm.finaliseCommand()
+	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
+	for true {
+		if !vm.blocked {
+			vm.block()
+			if vm.getDataFromBase() {
+				vm.finaliseCommand()
+			}
+			vm.unBlock()
+		}
+		vm.waitRandomly()
+	}
+
+	// t := time.Tick(2000 * time.Millisecond)
+	// for {
+	// 	select {
+	// 	case <-t:
+	// 		if !vm.blocked {
+	// 			vm.block()
+	// 			if vm.getDataFromBase() {
+	// 				vm.finaliseCommand()
+	// 			}
+	// 			vm.unBlock()
+	// 		} else {
+	// 			fmt.Println("Execution pending due to block")
+	// 		}
+	// 	}
+	// }
 }
