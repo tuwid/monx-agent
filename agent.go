@@ -127,7 +127,7 @@ func (pvm *agent) selfInstall() {
 		os.Exit(5)
 	}
 	if pvm.os == "windows" {
-		params := "create monxagent binPath= \"C:\\monx\\agent.exe 5a3562da41fd1258a74544b6 \"  DisplayName= \"Monx Agent\" start= auto"
+		params := "create monxagent binPath= \"C:\\monx\\agent.exe 5a3562da41fd1258a74544b6 \"  DisplayName=Monx start= auto"
 		os.Mkdir("C:\\monx\\", 0777)
 		sa, err := os.Open(pvm.agentpath)
 		orFail(err, "Error while reading from agent binary")
@@ -281,17 +281,24 @@ func main() {
 	}
 	fmt.Println("Initializing agent using mac :", vm.mac)
 	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
-	for true {
-		if !vm.blocked {
-			vm.block()
-			if vm.getDataFromBase() {
-				vm.finaliseCommand()
-			}
-			vm.unBlock()
-		}
-		vm.waitRandomly()
+
+	if vm.getDataFromBase() {
+		vm.finaliseCommand()
 	}
 
+	// THIS IS TO HAVE THE SERVICE RUNNING CONSTANTLY
+	// for true {
+	// 	if !vm.blocked {
+	// 		vm.block()
+	// 		if vm.getDataFromBase() {
+	// 			vm.finaliseCommand()
+	// 		}
+	// 		vm.unBlock()
+	// 	}
+	// 	vm.waitRandomly()
+	// }
+
+	// Ticker implementation:
 	// t := time.Tick(2000 * time.Millisecond)
 	// for {
 	// 	select {
