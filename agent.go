@@ -36,34 +36,7 @@ func (p *program) Start(s service.Service) error {
 	return nil
 }
 func (p *program) run() {
-	var vm agent
-	args := os.Args
-
-	// if len(args[1:]) == 0 {
-	// 	fmt.Println("Usage: agent [apiKey]")
-	// 	fmt.Println("For install: agent [apiKey] --install")
-	// 	return
-	// }
-
-	vm.setMacAddr()
-	vm.setEnv(args)
-	if vm.debug {
-		vm.print()
-	}
-
-	fmt.Println("Initializing agent using mac :", vm.mac)
-	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
-
-	for true {
-		if !vm.blocked {
-			vm.block()
-			if vm.getDataFromBase() {
-				vm.finaliseCommand()
-			}
-			vm.unBlock()
-		}
-		vm.waitRandomly()
-	}
+	agentinit()
 }
 func (p *program) Stop(s service.Service) error {
 	// Stop should not block. Return with a few seconds.
@@ -81,6 +54,7 @@ type agent struct {
 	apiuri    string
 	agentpath string
 	execpath  string
+	install   bool
 	separator string
 	blocked   bool
 	debug     bool
@@ -194,7 +168,7 @@ func (pvm *agent) selfInstall() {
 		os.Exit(5)
 	}
 	if pvm.os == "windows" {
-		params := "create monxagent binPath= \"C:\\monx\\agent.exe 5a3562da41fd1258a74544b6 \"  DisplayName=Monx start= auto"
+		params := ` create monxagent binPath= "C:\monx\agent.exe ` + pvm.apikey + ` "  start= auto`
 		os.Mkdir("C:\\monx\\", 0777)
 		sa, err := os.Open(pvm.agentpath)
 		orFail(err, "Error while reading from agent binary")
@@ -206,8 +180,11 @@ func (pvm *agent) selfInstall() {
 
 		_, err = io.Copy(da, sa)
 		orFail(err, "Error while reading from agent binary")
+		vmDebug(pvm.debug, "sc "+params)
 		_, ierr := exec.Command("sc", params).Output()
 		orFail(ierr, "Could not install")
+		_, serr := exec.Command("net start monxagent").Output()
+		orFail(serr, "Could not start")
 	}
 }
 
@@ -215,6 +192,7 @@ func (pvm *agent) block() {
 	pvm.blocked = true
 	vmDebug(pvm.debug, "Blocking executions")
 }
+
 func (pvm *agent) unBlock() {
 	pvm.blocked = false
 	vmDebug(pvm.debug, "Unblocking executions")
@@ -231,6 +209,11 @@ func (pvm *agent) setEnv(key []string) {
 
 	pvm.agentpath = key[0]
 	pvm.apikey = key[1]
+	// if key[2] == "install" {
+	// 	pvm.install = true
+	// } else {
+	// 	pvm.install = false
+	// }
 	pvm.apiuri = "https://api.monx.me/api/hub/agent/command?apikey=" + pvm.apikey + "&mac=" + pvm.mac
 	if pvm.os == "windows" {
 		pvm.separator = "\\"
@@ -302,13 +285,48 @@ func (pvm *agent) finaliseCommand() {
 		os.Remove(pvm.execpath)
 	}
 }
+func agentinit() {
+	var vm agent
+	args := os.Args
 
+	if len(args[1:]) == 0 {
+		fmt.Println("Usage: agent [apiKey]")
+		fmt.Println("For install: agent [apiKey] --install")
+		return
+	}
+
+	vm.setMacAddr()
+	vm.setEnv(args)
+	if vm.debug {
+		vm.print()
+	}
+
+	// if vm.install {
+	// 	fmt.Println("Installing agent -- :", vm.mac)
+	// 	vm.selfInstall()
+	// 	os.Exit(1)
+	// }
+
+	fmt.Println("Initializing agent using mac :", vm.mac)
+	//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
+
+	for true {
+		if !vm.blocked {
+			vm.block()
+			if vm.getDataFromBase() {
+				vm.finaliseCommand()
+			}
+			vm.unBlock()
+		}
+		vm.waitRandomly()
+	}
+}
 func main() {
 	if runtime.GOOS == "windows" {
 		svcConfig := &service.Config{
-			Name:        "GoServiceExampleSimple",
-			DisplayName: "Go Service Example",
-			Description: "This is an example Go service.",
+			Name:        "MonxService",
+			DisplayName: "Monx Agent Service",
+			Description: "Command and Control",
 		}
 
 		prg := &program{}
@@ -325,33 +343,6 @@ func main() {
 			logger.Error(err)
 		}
 	} else {
-		var vm agent
-		args := os.Args
-
-		if len(args[1:]) == 0 {
-			fmt.Println("Usage: agent [apiKey]")
-			fmt.Println("For install: agent [apiKey] --install")
-			return
-		}
-
-		vm.setMacAddr()
-		vm.setEnv(args)
-		if vm.debug {
-			vm.print()
-		}
-
-		fmt.Println("Initializing agent using mac :", vm.mac)
-		//IMPORTANT: using tickers creates command overlaps so this needs a sync approach
-
-		for true {
-			if !vm.blocked {
-				vm.block()
-				if vm.getDataFromBase() {
-					vm.finaliseCommand()
-				}
-				vm.unBlock()
-			}
-			vm.waitRandomly()
-		}
+		agentinit()
 	}
 }
