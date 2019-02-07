@@ -1,3 +1,4 @@
 .vagrant/*
+*default.conf*
 *.pyc
 .idea/*
