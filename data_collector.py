@@ -15,7 +15,7 @@ import re
 from socket import error as SocketError
 from urllib2 import Request, urlopen, URLError, HTTPError
 
-debug = True
+debug = False
 data = {}
 
 
@@ -101,8 +101,9 @@ class _sensor:
         cpu_info = subprocess.Popen("lscpu | egrep '^Thread|^Core|^Socket|^CPU\('",
                                     shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         cpu_thread_data = cpu_info.communicate()[0]
-        self._cpu_model, self._cpu_cores, self._cpu_speed, self._cpu_thread_data = (cpu_model, cpu_cores, cpu_speed, cpu_thread_data)
-        
+        self._cpu_model, self._cpu_cores, self._cpu_speed, self._cpu_thread_data = (
+            cpu_model, cpu_cores, cpu_speed, cpu_thread_data)
+
         root_d = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         all_d = subprocess.Popen("df -k | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
@@ -138,7 +139,8 @@ class _sensor:
         self._total_tsk, self._running_tsk, self._sleep_tsk, self._stopped_tsk, self._zombie_tsk = re.match(
             task_filter, top_data[1]).groups()
         resources = re.match(res_filter, top_data[2])
-        self._usr_cpu, self._sys_cpu, self._nic_cpu, self._idl_cpu, self._io_wait, self._hw_irq, self._sf_irq = resources.group(1), resources.group(2), resources.group(3), resources.group(4), resources.group(5), resources.group(6), resources.group(7)
+        self._usr_cpu, self._sys_cpu, self._nic_cpu, self._idl_cpu, self._io_wait, self._hw_irq, self._sf_irq = resources.group(
+            1), resources.group(2), resources.group(3), resources.group(4), resources.group(5), resources.group(6), resources.group(7)
 
         with open('/proc/meminfo', 'r') as f:
             meminfo = f.readlines()
@@ -285,16 +287,17 @@ class _sensor:
             'process_list'				: self._process_list,
             'number_of_processes'		: self._number_of_processes,
             'connection_list' 			: self._connection_list,
-            'number_of_connections'     : self._number_of_connections,
-            'memtotal'                  : self._memtotal,
+            'number_of_connections': self._number_of_connections,
+            'memtotal': self._memtotal,
             'memfree'					: self._memfree,
             'memswaptotal' 				: self._memswaptotal,
             'memswapfree' 				: self._memswapfree,
             'memcached' 				: self._memcached,
         }
-        
+
         for key in post_data:
             print key, ' - ', post_data[key]
+
 
 local_sensor = _sensor()
 
@@ -303,7 +306,8 @@ if len(sys.argv) > 1 and sys.argv[1] == '-u':
 local_sensor.collect()
 if (debug):
     local_sensor.print_collection()
-
+else:
+    local_sensor.post_to_api()
 # TODO
 # connection_stats ESTABLISHED, WAIT etc ..
 # TODO
