@@ -44,7 +44,8 @@ class _sensor:
         self._process_list = ''
         self._number_of_processes = ''
         self._connection_list = ''
-        self._number_of_connections = '0'
+        self._number_of_connections = 0
+        self.post_data = {}
 
     def collect(self):
         if not os.geteuid() == 0:
@@ -186,8 +187,8 @@ class _sensor:
         exit(1)
     # return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
 
-    def post_to_api(self):
-        post_data = {
+    def populate(self):
+        self.post_data = {
             'uname'						: self._uname,
             'number_of_logins'			: self._number_of_logins,
             'disks'						: self._disks,
@@ -230,6 +231,8 @@ class _sensor:
             'memswapfree' 				: self._memswapfree,
             'memcached' 				: self._memcached,
         }
+
+    def post_to_api(self):
 
         config = ConfigParser.ConfigParser()
         config.read('/opt/data_collector/default.conf')
@@ -240,7 +243,7 @@ class _sensor:
         req.add_header('Content-Type', 'application/json')
         req.add_header('X-Merhaba-From', 'x-monx-api')
         try:
-            response = urlopen(req, json.dumps(post_data))
+            response = urlopen(req, json.dumps(self.post_data))
             print response.read()
             print response.code
         except HTTPError as e:
@@ -250,53 +253,9 @@ class _sensor:
         except SocketError as e:
             print 'Socket Issue while posting to API ' + str(e)
 
-    def print_collection(self):
-        post_data = {
-            'uname'						: self._uname,
-            'number_of_logins'			: self._number_of_logins,
-            'disks'						: self._disks,
-            'all_disks'					: self._all_disks,
-            'cpu_cores' 				: self._cpu_cores,
-            'cpu_speed'					: self._cpu_speed,
-            'cpu_model' 	 			: self._cpu_model,
-            'cpu_thread_data': self._cpu_thread_data,
-            'open_files_limit'			: self._open_files_limit,
-            'outer_nic'					: self._outer_nic,
-            'membuffers'				: self._membuffers,
-            'agent_version': self._agent_version,
-            'ips': self._ips,
-            'last_installed': self._last_installed,
-            'transmitted_data' 			: self._transmitted_data,
-            'received_data' 			: self._received_data,
-            'usr_cpu': self._usr_cpu,
-            'sys_cpu': self._sys_cpu,
-            'nic_cpu': self._nic_cpu,
-            'idl_cpu': self._idl_cpu,
-            'io_wait': self._io_wait,
-            'hw_irq': self._hw_irq,
-            'sf_irq': self._sf_irq,
-            'st_time': self._st_time,
-            'load_proc'					: self._load_proc,
-            'total_tsk': self._total_tsk,
-            'running_tsk': self._running_tsk,
-            'sleep_tsk': self._sleep_tsk,
-            'stopped_tsk': self._stopped_tsk,
-            'zombie_tsk': self._zombie_tsk,
-            'open_files'				: self._open_files,
-            'uptime'					: self._uptime,
-            'process_list'				: self._process_list,
-            'number_of_processes'		: self._number_of_processes,
-            'connection_list' 			: self._connection_list,
-            'number_of_connections': self._number_of_connections,
-            'memtotal': self._memtotal,
-            'memfree'					: self._memfree,
-            'memswaptotal' 				: self._memswaptotal,
-            'memswapfree' 				: self._memswapfree,
-            'memcached' 				: self._memcached,
-        }
-
-        for key in post_data:
-            print key, ' - ', post_data[key]
+    def print_collection(self)
+        for key in self.post_data:
+            print key, ' - ', self.post_data[key]
 
 
 local_sensor = _sensor()
@@ -304,6 +263,8 @@ local_sensor = _sensor()
 if len(sys.argv) > 1 and sys.argv[1] == '-u':
     local_sensor.check_update()
 local_sensor.collect()
+local_sensor.populate()
+
 if (debug):
     local_sensor.print_collection()
 else:
