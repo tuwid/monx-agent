@@ -253,7 +253,7 @@ class _sensor:
         except SocketError as e:
             print 'Socket Issue while posting to API ' + str(e)
 
-    def print_collection(self)
+    def print_collection(self):
         for key in self.post_data:
             print key, ' - ', self.post_data[key]
 
