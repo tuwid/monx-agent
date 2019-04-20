@@ -23,9 +23,9 @@ class _sensor:
     def __init__(self):
         logging.debug("Composing object sensor")
         self._uname = platform.uname()
-        self._number_of_logins = ''
+        self._number_of_logins = 0
         self._disks = self._all_disks = ''
-        self._cpu_speed = self._cpu_cores = self._cpu_model = self._cpu_thread_data = ''
+        self._cpu_speed = self._cpu_cores = self._cpu_model = self._cpu_thread_data = 0
         self._open_files_limit = 0
         self._outer_nic = ''
         self._agent_version = '1.0.14'
@@ -42,7 +42,7 @@ class _sensor:
         self._memtotal = self._memfree = self._memswaptotal = self._memswapfree = self._memcached = self._membuffers = 0
         self._uptime = ''
         self._process_list = ''
-        self._number_of_processes = ''
+        self._number_of_processes = 0
         self._connection_list = ''
         self._number_of_connections = 0
         self.post_data = {}
