@@ -26,21 +26,21 @@ class _sensor:
         self._number_of_logins = ''
         self._disks = self._all_disks = ''
         self._cpu_speed = self._cpu_cores = self._cpu_model = self._cpu_thread_data = ''
-        self._open_files_limit = ''
+        self._open_files_limit = 0
         self._outer_nic = ''
-        self._agent_version = '1.0.12'
-        self._rx_diff = ''
-        self._tx_diff = ''
+        self._agent_version = '1.0.14'
+        self._rx_diff = 0
+        self._tx_diff = 0
         self._ips = ''
-        self._last_installed = ''
-        self._transmitted_data = ''
-        self._load_proc = ''
-        self._open_files = ''
-        self._usr_cpu = self._sys_cpu = self._nic_cpu = self._idl_cpu = self._io_wait = self._hw_irq = self._sf_irq = self._st_time = ''
-        self._total_tsk = self._running_tsk = self._sleep_tsk = self._stopped_tsk = self._zombie_tsk = ''
-        self._memtotal = self._memfree = self._memswaptotal = self._memswapfree = self._memcached = self._membuffers = ''
+        self._last_installed = 0
+        self._transmitted_data = 0
+        self._received_data = 0
+        self._load_proc = 0
+        self._open_files = 0
+        self._usr_cpu = self._sys_cpu = self._nic_cpu = self._idl_cpu = self._io_wait = self._hw_irq = self._sf_irq = self._st_time = 0
+        self._total_tsk = self._running_tsk = self._sleep_tsk = self._stopped_tsk = self._zombie_tsk = 0
+        self._memtotal = self._memfree = self._memswaptotal = self._memswapfree = self._memcached = self._membuffers = 0
         self._uptime = ''
-        self._received_data = ''
         self._process_list = ''
         self._number_of_processes = ''
         self._connection_list = ''
@@ -76,13 +76,11 @@ class _sensor:
             ['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
         self._number_of_processes = len(subprocess.Popen(
             ['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
-        self._number_of_connections = len(subprocess.Popen(
-            ['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+        self._number_of_connections = len(connection_list.split("\n"))
 
         with open('/proc/sys/fs/file-nr', 'r') as f:
             o_files = f.readline().rstrip().split()
-            self._open_files, self._open_files_limit = int(
-                o_files[0]), int(o_files[2])
+            self._open_files, self._open_files_limit = int(o_files[0]), int(o_files[2])
 
         #     ps = subprocess.Popen("ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40",
         #                           shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -107,13 +105,14 @@ class _sensor:
 
         root_d = subprocess.Popen("df -k | grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        all_d = subprocess.Popen("df -k | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
+        all_d = subprocess.Popen("df -k | awk '{ print $1 \" \" $2 \" \" $3 }' | grep -v 'loop' | grep -v '^shm' | grep -v '^overlay' ", shell=True,
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        # all_inodes = subprocess.Popen("df -i | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
-        #                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        all_inodes = subprocess.Popen("df -i |  grep '^/' | awk '{ print $1 \" \" $2 \" \" $3 }'", shell=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         self._disks = root_d.communicate()[0].split("\n")
         self._all_disks = all_d.communicate()[0].split("\n")
+        self._all_inodes = all_d.communicate()[0].split("\n")
 
         # possible bug on virtualized
         # default dev venet0  scope link
@@ -152,8 +151,7 @@ class _sensor:
                 if temp[0] == 'MemFree':
                     self._memfree = int((temp[1].strip()).replace(" kB", ""))
                 if temp[0] == 'Buffers':
-                    self._membuffers = int(
-                        (temp[1].strip()).replace(" kB", ""))
+                    self._membuffers = int((temp[1].strip()).replace(" kB", ""))
                 if temp[0] == 'Cached':
                     self._memcached = int((temp[1].strip()).replace(" kB", ""))
                 if temp[0] == 'SwapTotal':
@@ -166,7 +164,7 @@ class _sensor:
         if(resources.group(9)):
             self._st_time = resources.group(9)
         else:
-            self._st_time = '0.0'
+            self._st_time = 0
 
         with open('/sys/class/net/' + self._outer_nic + '/statistics/rx_bytes', 'r') as f:
             self._received_data = int(f.readline().rstrip())
@@ -175,7 +173,7 @@ class _sensor:
             self._transmitted_data = int(f.readline().rstrip())
 
         # TODO: /sbin/ip addr show br0 | grep inet | awk '{print $2}'
-        f = os.popen('/sbin/ip addr | grep inet | awk \'{print $2}\'')
+        f = os.popen('/sbin/ip addr | grep inet| grep -v "^fe80" | grep -v "^fd" | awk \'{print $2}\' ')
         self._ips = f.read().replace('\n', ', ')
         f.close()
 
@@ -196,36 +194,36 @@ class _sensor:
             'cpu_cores' 				: self._cpu_cores,
             'cpu_speed'					: self._cpu_speed,
             'cpu_model' 	 			: self._cpu_model,
-            'cpu_thread_data': self._cpu_thread_data,
+            'cpu_thread_data'           : self._cpu_thread_data,
             'open_files_limit'			: self._open_files_limit,
             'outer_nic'					: self._outer_nic,
             'membuffers'				: self._membuffers,
-            'agent_version': self._agent_version,
-            'ips': self._ips,
-            'last_installed': self._last_installed,
+            'agent_version'             : self._agent_version,
+            'ips'                       : self._ips,
+            'last_installed'            : self._last_installed,
             'transmitted_data' 			: self._transmitted_data,
             'received_data' 			: self._received_data,
-            'usr_cpu': self._usr_cpu,
-            'sys_cpu': self._sys_cpu,
-            'nic_cpu': self._nic_cpu,
-            'idl_cpu': self._idl_cpu,
-            'io_wait': self._io_wait,
-            'hw_irq': self._hw_irq,
-            'sf_irq': self._sf_irq,
-            'st_time': self._st_time,
+            'usr_cpu'                   : self._usr_cpu,
+            'sys_cpu'                   : self._sys_cpu,
+            'nic_cpu'                   : self._nic_cpu,
+            'idl_cpu'                   : self._idl_cpu,
+            'io_wait'                   : self._io_wait,
+            'hw_irq'                    : self._hw_irq,
+            'sf_irq'                    : self._sf_irq,
+            'st_time'                   : self._st_time,
             'load_proc'					: self._load_proc,
-            'total_tsk': self._total_tsk,
-            'running_tsk': self._running_tsk,
-            'sleep_tsk': self._sleep_tsk,
-            'stopped_tsk': self._stopped_tsk,
-            'zombie_tsk': self._zombie_tsk,
+            'total_tsk'                 : self._total_tsk,
+            'running_tsk'               : self._running_tsk,
+            'sleep_tsk'                 : self._sleep_tsk,
+            'stopped_tsk'               : self._stopped_tsk,
+            'zombie_tsk'                : self._zombie_tsk,
             'open_files'				: self._open_files,
             'uptime'					: self._uptime,
             'process_list'				: self._process_list,
             'number_of_processes'		: self._number_of_processes,
             'connection_list' 			: self._connection_list,
-            'number_of_connections': self._number_of_connections,
-            'memtotal': self._memtotal,
+            'number_of_connections'     : self._number_of_connections,
+            'memtotal'                  : self._memtotal,
             'memfree'					: self._memfree,
             'memswaptotal' 				: self._memswaptotal,
             'memswapfree' 				: self._memswapfree,
