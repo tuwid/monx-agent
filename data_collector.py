@@ -112,7 +112,7 @@ class _sensor:
 
         self._disks = root_d.communicate()[0].split("\n")
         self._all_disks = all_d.communicate()[0].split("\n")
-        self._all_inodes = all_d.communicate()[0].split("\n")
+        self._all_inodes = all_inodes.communicate()[0].split("\n")
 
         # possible bug on virtualized
         # default dev venet0  scope link
