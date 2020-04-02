@@ -18,7 +18,6 @@ from urllib2 import Request, urlopen, URLError, HTTPError
 debug = False
 data = {}
 
-
 class _sensor:
     def __init__(self):
         logging.debug("Composing object sensor")
@@ -44,6 +43,8 @@ class _sensor:
         self._process_list = ''
         self._number_of_processes = 0
         self._connection_list = ''
+        self._conn_r_ip_list = ''
+        self._conn_status = ''
         self._number_of_connections = 0
         self.post_data = {}
 
@@ -69,20 +70,61 @@ class _sensor:
         with open('/proc/loadavg', 'r') as f:
             self._load_proc = float(f.readline().rstrip().split()[0])
 
-        connection_list = subprocess.Popen(
-            ['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
-        self._connection_list = connection_list.split("\n")
-        self._number_of_logins = subprocess.Popen(
-            ['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
-        self._number_of_processes = len(subprocess.Popen(
-            ['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+        connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
+
+        #### Parse netstat output 
+        conn_status = {}
+        conn_status['LOCAL_CONN'] = 0
+        conn_r_ip_list = {}
+        conn_stats = {}
+
+        for ln in connection_list.split("\n"):
+            raw_line = ln.split()
+            if not raw_line[5] in conn_status:
+                conn_status[raw_line[5]] = 1
+            else:
+                conn_status[raw_line[5]]+=1
+
+            # ip = raw_line[4].split(":")[0]
+            ip = raw_line[4].rsplit(':', 1)[0]
+            if not ip in conn_r_ip_list:
+                conn_r_ip_list[ip] = 1
+            else:
+                conn_r_ip_list[ip] +=1
+
+            if not ip in conn_stats:
+                conn_stats[ip]= {}
+
+            if not raw_line[5] in conn_stats[ip]:
+                conn_stats[ip][raw_line[5]] = 1
+            else:
+                conn_stats[ip][raw_line[5]] += 1
+                    
+            if raw_line[3].startswith('127.'):
+                conn_status['LOCAL_CONN']+=1
+
+        if '127.0.0.1' in conn_r_ip_list:
+            conn_r_ip_list['127.0.0.1'] /=2
+
+        conn_status['LOCAL_CONN']/=2
+
+        for key in conn_r_ip_list.keys():
+            if conn_r_ip_list[key] < 6:
+                conn_r_ip_list.pop(key)
+        
+        self._connection_list = conn_stats
+        self._conn_r_ip_list = _conn_r_ip_list
+        self._conn_status = conn_status
+
+        self._number_of_logins = subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
+        self._number_of_processes = len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
         self._number_of_connections = len(connection_list.split("\n"))
 
         with open('/proc/sys/fs/file-nr', 'r') as f:
             o_files = f.readline().rstrip().split()
             self._open_files, self._open_files_limit = int(o_files[0]), int(o_files[2])
 
-        #     ps = subprocess.Popen("ps axc -o uname:10,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -40",
+        #     ps = subprocess.Popen("ps axc -o uname:20,pcpu,rss,cmd --sort=-pcpu,-rss --noheaders --width 140 | head -1200",
         #                           shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         #     return ps.communicate()[0].split("\n")
 
@@ -178,31 +220,29 @@ class _sensor:
         f.close()
 
     def check_update(self):
-        urllib.urlretrieve('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py',
-                           "/opt/data_collector/data_collector.py")
-        subprocess.call(
-            ['chmod', '0755', '/opt/data_collector/data_collector.py'])
+        urllib.urlretrieve('https://raw.githubusercontent.com/tuwid/monx-agent/master/data_collector.py',"/opt/data_collector/data_collector.py")
+        subprocess.call(['chmod', '0755', '/opt/data_collector/data_collector.py'])
         exit(1)
     # return subprocess.Popen("/sbin/ip route | grep '^default' |  awk '{ print $5 }'",shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].rstrip()
 
     def populate(self):
         self.post_data = {
-            'uname'						: self._uname,
-            'number_of_logins'			: self._number_of_logins,
-            'disks'						: self._disks,
-            'all_disks'					: self._all_disks,
-            'cpu_cores' 				: self._cpu_cores,
-            'cpu_speed'					: self._cpu_speed,
-            'cpu_model' 	 			: self._cpu_model,
+            'uname'	                    : self._uname,
+            'number_of_logins'          : self._number_of_logins,
+            'disks'                     : self._disks,
+            'all_disks'                 : self._all_disks,
+            'cpu_cores'                 : self._cpu_cores,
+            'cpu_speed'                 : self._cpu_speed,
+            'cpu_model'                 : self._cpu_model,
             'cpu_thread_data'           : self._cpu_thread_data,
-            'open_files_limit'			: self._open_files_limit,
-            'outer_nic'					: self._outer_nic,
-            'membuffers'				: self._membuffers,
+            'open_files_limit'          : self._open_files_limit,
+            'outer_nic'			: self._outer_nic,
+            'membuffers'		: self._membuffers,
             'agent_version'             : self._agent_version,
             'ips'                       : self._ips,
             'last_installed'            : self._last_installed,
-            'transmitted_data' 			: self._transmitted_data,
-            'received_data' 			: self._received_data,
+            'transmitted_data' 		: self._transmitted_data,
+            'received_data' 		: self._received_data,
             'usr_cpu'                   : self._usr_cpu,
             'sys_cpu'                   : self._sys_cpu,
             'nic_cpu'                   : self._nic_cpu,
@@ -211,23 +251,23 @@ class _sensor:
             'hw_irq'                    : self._hw_irq,
             'sf_irq'                    : self._sf_irq,
             'st_time'                   : self._st_time,
-            'load_proc'					: self._load_proc,
+            'load_proc'		        : self._load_proc,
             'total_tsk'                 : self._total_tsk,
             'running_tsk'               : self._running_tsk,
             'sleep_tsk'                 : self._sleep_tsk,
             'stopped_tsk'               : self._stopped_tsk,
             'zombie_tsk'                : self._zombie_tsk,
-            'open_files'				: self._open_files,
-            'uptime'					: self._uptime,
-            'process_list'				: self._process_list,
-            'number_of_processes'		: self._number_of_processes,
-            'connection_list' 			: self._connection_list,
+            'open_files'	        : self._open_files,
+            'uptime'	    	        : self._uptime,
+            'process_list'	        : self._process_list,
+            'number_of_processes'       : self._number_of_processes,
+            'connection_list' 	        : self._connection_list,
             'number_of_connections'     : self._number_of_connections,
             'memtotal'                  : self._memtotal,
-            'memfree'					: self._memfree,
-            'memswaptotal' 				: self._memswaptotal,
-            'memswapfree' 				: self._memswapfree,
-            'memcached' 				: self._memcached,
+            'memfree'		        : self._memfree,
+            'memswaptotal' 	        : self._memswaptotal,
+            'memswapfree' 	        : self._memswapfree,
+            'memcached' 	        : self._memcached,
         }
 
     def post_to_api(self):
