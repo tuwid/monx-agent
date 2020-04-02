@@ -80,6 +80,7 @@ class _sensor:
 
         connections = connection_list.split("\n")
         connections.pop(0)
+        connections.pop(0)
         
         logging.debug("Connection list:")
 
@@ -119,7 +120,7 @@ class _sensor:
                 conn_r_ip_list.pop(key)
         
         self._connection_list = conn_stats
-        self._conn_r_ip_list = _conn_r_ip_list
+        self._conn_r_ip_list = conn_r_ip_list
         self._conn_status = conn_status
 
         self._number_of_logins = subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
