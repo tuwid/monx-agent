@@ -80,9 +80,11 @@ class _sensor:
 
         connections = connection_list.split("\n")
         connections.pop(0)
-        connections.pop(0)
         
-        for ln in connection_list.split("\n"):
+        logging.debug("Connection list:")
+
+        for ln in connections:
+            logging.debug(ln)
             raw_line = ln.split()
             if not raw_line[5] in conn_status:
                 conn_status[raw_line[5]] = 1
