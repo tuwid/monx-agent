@@ -78,6 +78,10 @@ class _sensor:
         conn_r_ip_list = {}
         conn_stats = {}
 
+        connections = connection_list.split("\n")
+        connections.pop(0)
+        connections.pop(0)
+        
         for ln in connection_list.split("\n"):
             raw_line = ln.split()
             if not raw_line[5] in conn_status:
