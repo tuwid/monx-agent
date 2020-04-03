@@ -19,7 +19,7 @@ mkdir -p /opt/data_collector/
 cat >/opt/data_collector/default.conf <<EOF
 [settings]
 api_key = $MONX_API_KEY
-api_url = https://api.monx.me/api/servers/$MONX_API_KEY/statistics
+api_url = http://t1.monx.me/api/servers/$MONX_API_KEY/statistics
 
 EOF
 

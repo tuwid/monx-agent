@@ -56,19 +56,27 @@ class _sensor:
             print('Root check OK')
 
         if os.path.exists('/var/log/yum.log'):
+            logging.debug("Found yum.log")
             self._last_installed = os.path.getmtime('/var/log/yum.log')
         elif os.path.exists('/var/log/dpkg.log'):
+            logging.debug("Found dpkg.log")
             self._last_installed = os.path.getmtime('/var/log/dpkg.log')
         elif os.path.exists('/var/log/YaST2/y2logRPM'):
+            logging.debug("Found y2logRPM")
             self._last_installed = os.path.getmtime('/var/log/YaST2/y2logRPM')
         else:
+            logging.debug("Could not find relevant log for packages")
             self._last_installed = -1
 
         with open('/proc/uptime', 'r') as f:
             self._uptime = float(f.readline().rstrip().split()[0])
+            logging.debug("Got Uptime")
+            logging.debug(self._uptime)
 
         with open('/proc/loadavg', 'r') as f:
             self._load_proc = float(f.readline().rstrip().split()[0])
+            logging.debug("Got loadavg")
+            logging.debug(self._load_proc)
 
         connection_list = subprocess.Popen(['netstat', '-tun'], stdout=subprocess.PIPE).communicate()[0].rstrip()
 
@@ -118,14 +126,31 @@ class _sensor:
         for key in conn_r_ip_list.keys():
             if conn_r_ip_list[key] < 6:
                 conn_r_ip_list.pop(key)
-        
+
+
         self._connection_list = conn_stats
+        logging.debug("Got _connection_list")
+        logging.debug(self._connection_list)
+
         self._conn_r_ip_list = conn_r_ip_list
+        logging.debug("Got _conn_r_ip_list")
+        logging.debug(self._conn_r_ip_list)
+
         self._conn_status = conn_status
+        logging.debug("Got _conn_status")
+        logging.debug(self._conn_status)
 
         self._number_of_logins = subprocess.Popen(['who'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n")
+        logging.debug("Got _number_of_logins")
+        logging.debug(self._number_of_logins)
+
         self._number_of_processes = len(subprocess.Popen(['ps', 'ax'], stdout=subprocess.PIPE).communicate()[0].rstrip().split("\n"))
+        logging.debug("Got _number_of_processes")
+        logging.debug(self._number_of_processes)
+
         self._number_of_connections = len(connection_list.split("\n"))
+        logging.debug("Got _number_of_connections")
+        logging.debug(self._number_of_connections)
 
         with open('/proc/sys/fs/file-nr', 'r') as f:
             o_files = f.readline().rstrip().split()
